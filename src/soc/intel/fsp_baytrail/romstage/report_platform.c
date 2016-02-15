@@ -22,6 +22,7 @@
 #include <soc/msr.h>
 #include <cpu/x86/name.h>
 
+// 打印dram信息
 static void print_dram_info(void)
 {
 	const int mrc_ver_reg = 0xf0;
@@ -34,6 +35,7 @@ static void print_dram_info(void)
 
 	reg = pci_read_config32(soc_dev, mrc_ver_reg);
 
+	// MRC版本
 	printk(BIOS_INFO, "MRC v%d.%02d\n", (reg >> 8) & 0xff, reg & 0xff);
 
 	/* Number of channels enabled and DDR3 type. Determine number of
@@ -46,6 +48,7 @@ static void print_dram_info(void)
 	if (ch1 & DRP_RANK_MASK)
 		num_channels++;
 
+	// 通道数
 	printk(BIOS_INFO, "%d channels of %sDDR3 @ ", num_channels,
 	       (reg & (1 << 22)) ? "LP" : "");
 
@@ -61,9 +64,11 @@ static void print_dram_info(void)
 	case 3:
 		speed = 1600; break;
 	}
+	// 频率
 	printk(BIOS_INFO, "%dMHz\n", speed);
 }
 
+// 打印CPU芯片类型
 #define VARIANT_ID_BYTE	18
 #define VARIANT_ID_MASK 7
 void report_platform_info(void)

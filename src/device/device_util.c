@@ -786,6 +786,7 @@ void show_devs_tree(struct device *dev, int debug_level, int depth, int linknum)
 		depth_str[i] = ' ';
 	depth_str[i] = '\0';
 
+	/* depth_str是用空格显示树形结构，dev_path解析出是哪一种外设，PCI或Root device */
 	do_printk(debug_level, "%s%s: enabled %d\n",
 		  depth_str, dev_path(dev), dev->enabled);
 
@@ -814,6 +815,7 @@ void show_devs_subtree(struct device *root, int debug_level, const char *msg)
 	show_devs_tree(root, debug_level, 0, -1);
 }
 
+// 列出所有设备
 void show_all_devs(int debug_level, const char *msg)
 {
 	struct device *dev;

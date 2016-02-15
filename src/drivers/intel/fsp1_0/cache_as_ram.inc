@@ -90,6 +90,7 @@ before_romstage:
 	post_code(0x23)
 
 	/* Call romstage.c main function. */
+	/* 调用romstage.c的主函数，注意其参数 */
 	pushl %ebx /* main takes FSP_INFO_HEADER as its argument */
 	call  main /* does not return */
 	movb  $0xB8, %ah

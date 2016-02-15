@@ -29,6 +29,7 @@ void prog_run(struct prog *prog)
 	arch_prog_run(prog);
 }
 
+// 这个是弱链接，x86上没有定义，直接使用这个函数，空实现
 void __attribute__ ((weak)) platform_prog_run(struct prog *prog)
 {
 	/* do nothing */

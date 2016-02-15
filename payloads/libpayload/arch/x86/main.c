@@ -38,6 +38,7 @@ unsigned int main_argc;    /**< The argc value to pass to main() */
 /** The argv value to pass to main() */
 char *main_argv[MAX_ARGC_COUNT];
 
+// tocheck 这个函数什么时候调用？
 /**
  * This is our C entry function - set up the system
  * and jump into the payload entry point.

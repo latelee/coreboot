@@ -43,6 +43,7 @@ static struct device_operations cpu_bus_ops = {
 	.scan_bus         = NULL,
 };
 
+// 使能设置
 static void enable_dev(device_t dev)
 {
 	printk(BIOS_DEBUG, "enable_dev(%s, %d)\n",
@@ -63,11 +64,18 @@ static void enable_dev(device_t dev)
 }
 
 /* Called at BS_DEV_INIT_CHIPS time -- very early. Just after BS_PRE_DEVICE. */
+/* 在哪里调用此函数？ */
 static void soc_init(void *chip_info)
 {
-	baytrail_init_pre_device();
+	baytrail_init_pre_device(); // ramstage.c中定义
 }
 
+/* 操作函数指针
+CHIP_NAME声明的字符串，在enable_dev会用到
+enable_dev：在root_device.c文件的scan_static_bus函数中调用此函数
+soc_init：在hardwaremain.c文件的bs_dev_init_chips调用dev_initialize_chips，
+          再在dev_initialize_chips中调用
+*/
 struct chip_operations soc_intel_fsp_baytrail_ops = {
 	CHIP_NAME("Intel BayTrail SoC")
 	.enable_dev = enable_dev,

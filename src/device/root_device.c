@@ -43,6 +43,7 @@ const char mainboard_name[] = CONFIG_MAINBOARD_VENDOR " " CONFIG_MAINBOARD_PART_
  * @param bus Pointer to the device to which the static buses are attached to.
  */
 
+/* enable_dev会调用到chip_operations结构体中的enable_dev函数 */
 static void scan_static_bus(device_t bus)
 {
 	device_t child;
@@ -63,6 +64,7 @@ static void scan_static_bus(device_t bus)
 	}
 }
 
+// 扫描lpc总线
 void scan_lpc_bus(device_t bus)
 {
 	printk(BIOS_SPEW, "%s for %s\n", __func__, dev_path(bus));

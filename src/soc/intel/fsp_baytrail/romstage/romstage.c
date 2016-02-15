@@ -40,6 +40,7 @@
 #include <pc80/mc146818rtc.h>
 #include <device/pci_def.h>
 
+// 返回上次休眠状态码，疑问：每种状态码表示什么意思？
 /* Return 0, 3, 4 or 5 to indicate the previous sleep state. */
 uint32_t chipset_prev_sleep_state(uint32_t clear)
 {
@@ -85,6 +86,7 @@ uint32_t chipset_prev_sleep_state(uint32_t clear)
 	return prev_sleep_state;
 }
 
+// 此函数作用？
 static void program_base_addresses(void)
 {
 	uint32_t reg;
@@ -112,6 +114,8 @@ static void program_base_addresses(void)
 	pci_write_config32(LPC_BDF, GBASE, reg);
 }
 
+// 本函数主要是禁止SMI，禁止SMM
+// 注:有的bios会禁止内核或应用层写存储bios程序的存储器(flash)，通过这些设置，则可以写
 static void spi_init(void)
 {
 	uint32_t *scs = (uint32_t *)(SPI_BASE_ADDRESS + SCS);
@@ -147,6 +151,7 @@ static void baytrail_rtc_init(void)
 }
 
 /* Entry from cache-as-ram.inc. */
+// 在cache-as-ram.inc文件before_romstage调用，参数FSP_INFO_HEADER由ebp保存至ebx得到
 void main(FSP_INFO_HEADER *fsp_info_header)
 {
 	uint32_t *func_dis = (uint32_t *)(PMC_BASE_ADDRESS + FUNC_DIS);
@@ -168,15 +173,15 @@ void main(FSP_INFO_HEADER *fsp_info_header)
 	byt_config_com1_and_enable();
 
 	post_code(0x43);
-	console_init();
+	console_init(); // 是否在这里?
 
-	spi_init();
-	baytrail_rtc_init();
+	spi_init();	// spi初始化
+	baytrail_rtc_init(); // rtc初始化
 
 	/* Call into mainboard. */
 	early_mainboard_romstage_entry();
 
-	set_max_freq();
+	set_max_freq(); // 设置最大频率
 
 	post_code(0x44);
 
@@ -199,6 +204,7 @@ void main(FSP_INFO_HEADER *fsp_info_header)
 
 	timestamp_add_now(TS_BEFORE_INITRAM);
 
+	// FSP初始化，包括内存和栈
   /*
    * Call early init to initialize memory and chipset. This function returns
    * to the romstage_main_continue function with a pointer to the HOB
@@ -206,7 +212,7 @@ void main(FSP_INFO_HEADER *fsp_info_header)
    */
 	post_code(0x48);
 	printk(BIOS_DEBUG, "Starting the Intel FSP (early_init)\n");
-	fsp_early_init(fsp_info_header);
+	fsp_early_init(fsp_info_header); // 在fsp_utitl.c文件，不返回，直接到下面的romstage_main_continue函数。
 	die("Uh Oh! fsp_early_init should not return here.\n");
 }
 
@@ -214,6 +220,7 @@ void main(FSP_INFO_HEADER *fsp_info_header)
  * The FSP early_init function returns to this function.
  * Memory is setup and the stack is set by the FSP.
  */
+// FSP最后会调用到此函数
 void romstage_main_continue(EFI_STATUS status, void *hob_list_ptr) {
 	int cbmem_was_initted;
 	void *cbmem_hob_ptr;
@@ -233,11 +240,12 @@ void romstage_main_continue(EFI_STATUS status, void *hob_list_ptr) {
 
 	printk(BIOS_DEBUG, "FSP Status: 0x%0x\n", (u32)status);
 
+	// 获取上次休眠状态
 	/* Get previous sleep state again and clear */
 	prev_sleep_state = chipset_prev_sleep_state(1);
 	printk(BIOS_DEBUG, "%s: prev_sleep_state = S%d\n", __func__, prev_sleep_state);
 
-	report_platform_info();
+	report_platform_info(); // 打印芯片型号和内存信息
 
 	post_code(0x4b);
 
@@ -266,7 +274,7 @@ void romstage_main_continue(EFI_STATUS status, void *hob_list_ptr) {
 	post_code(0x4f);
 
 	/* Load the ramstage. */
-	copy_and_run();
+	copy_and_run(); // 加载ramstage并运行
 	while (1);
 }
 

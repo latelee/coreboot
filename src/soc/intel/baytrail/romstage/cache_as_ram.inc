@@ -178,10 +178,12 @@ wait_for_sipi:
 before_romstage:
 	post_code(0x2a)
 	/* Call romstage.c main function. */
+	/* 调用romstage.c的romstage_main函数 */
 	call	romstage_main
 	/* Save return value from romstage_main. It contains the stack to use
 	 * after cache-as-ram is torn down. It also contains the information
 	 * for setting up MTRRs. */
+	/* 函数返回值在eax中，赋值给ebx，后面再给到栈指针esp */
 	movl	%eax, %ebx
 
 	post_code(0x2b)

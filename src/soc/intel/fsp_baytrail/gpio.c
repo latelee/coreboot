@@ -59,7 +59,7 @@ static const u8 gpssus_gpio_to_pad[GPSSUS_COUNT] =
 	  56, 54, 49, 55, 48, 57, 50, 58,	/* [32:39] */
 	  52, 53, 59, 40 };			/* [40:43] */
 
-
+// ramstage没有定义__PRE_RAM__
 #ifndef __PRE_RAM__
 
 /* GPIO bank descriptions */

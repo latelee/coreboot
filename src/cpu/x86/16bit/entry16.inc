@@ -33,8 +33,10 @@
 .type _start, @function
 
 _start:
+	/* 关中断 */
 	cli
 	/* Save the BIST result */
+	/* 保存eax的BIST(Built-In Self-Test)的值，上电或复位后，eax值为0表示所有的测试通过，参见intel开发文档3A 9.1.2 */
 	movl	%eax, %ebp
 #if !IS_ENABLED(CONFIG_NO_EARLY_BOOTBLOCK_POSTCODES)
 	post_code(POST_RESET_VECTOR_CORRECT)
@@ -45,7 +47,7 @@ _start:
 	 * could still get false address translations due to the TLB if we
 	 * didn't invalidate it. Thanks to kmliu@sis.com.tw for this TLB fix.
 	 */
-
+	/* cr3清零，使TLB无效(cache无效) — CR3:页目录基址的物理地址和PCD和PWT标志位(和CACHE有关) */
 	xorl	%eax, %eax
 	movl	%eax, %cr3    /* Invalidate TLB*/
 
@@ -108,11 +110,13 @@ _start:
 	subw	%ax, %bx
 	lgdtl	%cs:(%bx)
 
+	/* 进入保护模式 PE为1 */
 	movl	%cr0, %eax
 	andl	$0x7FFAFFD1, %eax /* PG,AM,WP,NE,TS,EM,MP = 0 */
 	orl	$0x60000001, %eax /* CD, NW, PE = 1 */
 	movl	%eax, %cr0
 
+	/* 重新赋值BIST到eax */
 	/* Restore BIST to %eax */
 	movl	%ebp, %eax
 

@@ -68,4 +68,5 @@ __protected_start:
 	movw	%ax, %gs
 
 	/* Restore the BIST value to %eax */
+	/* 恢复BIST值到eax，疑问：后面会使用吗？哪里使用？ */
 	movl	%ebp, %eax

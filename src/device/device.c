@@ -973,6 +973,7 @@ void scan_bridges(struct bus *bus)
  * scan_bus() method also has to create the device structure and attach
  * it to the device tree.
  */
+/* 这个函数扫描设备上所有外设 */
 void dev_enumerate(void)
 {
 	struct device *root;

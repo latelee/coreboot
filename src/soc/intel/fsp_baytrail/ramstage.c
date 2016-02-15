@@ -67,6 +67,7 @@ static inline void fill_in_msr(msr_t *msr, int idx)
 	}
 }
 
+/* 修正版本 */
 static const char *stepping_str[] = {
 	"A0", "A1", "B0", "B1", "B2", "B3", "C0", "D0",
 };
@@ -99,6 +100,7 @@ static void fill_in_pattrs(void)
 	attrs->address_bits = cpuid_eax(0x80000008) & 0xff;
 	detect_num_cpus(attrs);
 
+	/* 打印CPUID或核心、版本 */
 	if (SHOW_PATTRS) {
 		printk(BIOS_DEBUG,
 		       "CPUID: %08x\nCores: %d\nRevision ID: %02x\nStepping: %s\n",
@@ -145,15 +147,16 @@ void baytrail_init_pre_device(void)
 {
 	struct soc_gpio_config *config;
 
-	fill_in_pattrs();
+	fill_in_pattrs(); // 打印CPU ID
 
 	/* Allow for SSE instructions to be executed. */
+	/* 允许SSE指令，参考cr4寄存器说明 */
 	write_cr4(read_cr4() | CR4_OSFXSR | CR4_OSXMMEXCPT);
 
 	/* Indicate S3 resume to rest of ramstage. */
 	s3_resume_prepare();
 
 	/* Get GPIO initial states from mainboard */
-	config = mainboard_get_gpios();
-	setup_soc_gpios(config);
+	config = mainboard_get_gpios(); // 弱链接，返回NULL
+	setup_soc_gpios(config); // 实际不设置gpio...
 }

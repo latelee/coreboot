@@ -15,6 +15,7 @@
 #ifndef _RULES_H
 #define _RULES_H
 
+// __BOOTBLOCK__ __ROMSTAGE__在Makefile中定义，根据这些宏，再定义不同的标志，以区别在哪一阶段
 /* Useful helpers to tell whether the code is executing in bootblock,
  * romstage, ramstage or SMM.
  */
