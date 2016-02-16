@@ -36,11 +36,12 @@
 static void smm_relocate(void *unused);
 static void enable_smis(void *unused);
 
+// mp_init.c的bsp_do_flight_plan函数会调用到
 static struct mp_flight_record mp_steps[] = {
 	MP_FR_BLOCK_APS(smm_relocate, NULL, smm_relocate, NULL),
-	MP_FR_BLOCK_APS(mp_initialize_cpu, NULL, mp_initialize_cpu, NULL),
+	MP_FR_BLOCK_APS(mp_initialize_cpu, NULL, mp_initialize_cpu, NULL), // 初始化cpu
 	/* Wait for APs to finish initialization before proceeding. */
-	MP_FR_BLOCK_APS(NULL, NULL, enable_smis, NULL),
+	MP_FR_BLOCK_APS(NULL, NULL, enable_smis, NULL),	// 使能smis
 };
 #else /* CONFIG_HAVE_SMI_HANDLER */
 static struct mp_flight_record mp_steps[] = {
@@ -102,9 +103,10 @@ static void baytrail_core_init(device_t cpu)
 	reg_script_run(core_msr_script);
 
 	/* Set this core to max frequency ratio */
-	set_max_freq();
+	set_max_freq(); // 设置最大频率
 }
 
+// 在cpu.c文件的cpu->ops->init(cpu);中调用到
 static struct device_operations cpu_dev_ops = {
 	.init = baytrail_core_init,
 };

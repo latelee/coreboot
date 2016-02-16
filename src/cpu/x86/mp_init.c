@@ -493,6 +493,7 @@ static void init_bsp(struct bus *cpu_bus)
 
 	/* Print processor name */
 	fill_processor_name(processor_name);
+	// 打印CPU，如CPU: Intel(R) Atom(TM) CPU  E3815  @ 1.46GHz.
 	printk(BIOS_INFO, "CPU: %s.\n", processor_name);
 
 	/* Ensure the local apic is enabled */
@@ -560,13 +561,13 @@ int mp_init(struct bus *cpu_bus, struct mp_params *p)
 	}
 
 	/* Walk the flight plan for the BSP. */
-	return bsp_do_flight_plan(p);
+	return bsp_do_flight_plan(p); // 调用具体的cpu.c文件的mp_steps结构体函数
 }
 
 void mp_initialize_cpu(void *unused)
 {
 	/* Call back into driver infrastructure for the AP initialization.   */
-	struct cpu_info *info = cpu_info();
+	struct cpu_info *info = cpu_info(); // 在cpu.h文件中定义，汇编语言
 	cpu_initialize(info->index);
 }
 

@@ -127,6 +127,7 @@ static const char *x86_vendor_name[] = {
 	[X86_VENDOR_SIS]       = "SiS",
 };
 
+// 根据下面的identify_cpu函数得到的vendor索引，再次查找字符串
 static const char *cpu_vendor_name(int vendor)
 {
 	const char *name;
@@ -168,7 +169,7 @@ static void identify_cpu(struct device *cpu)
 	if (cpu_have_cpuid()) {
 		int  cpuid_level;
 		struct cpuid_result result;
-		result = cpuid(0x00000000);
+		result = cpuid(0x00000000); // eax为0表示读取vendor id，一共12字节，依次在ebx、edx、ecx。
 		cpuid_level    = result.eax;
 		vendor_name[ 0] = (result.ebx >>  0) & 0xff;
 		vendor_name[ 1] = (result.ebx >>  8) & 0xff;
@@ -186,13 +187,14 @@ static void identify_cpu(struct device *cpu)
 
 		/* Intel-defined flags: level 0x00000001 */
 		if (cpuid_level >= 0x00000001) {
-			cpu->device = cpuid_eax(0x00000001);
+			cpu->device = cpuid_eax(0x00000001); // eax为1，获取cpu信息(数字)，如family/model/stepping
 		}
 		else {
 			/* Have CPUID level 0 only unheard of */
 			cpu->device = 0x00000400;
 		}
 	}
+	// 用vendor id查找表格，得到vendor索引
 	cpu->vendor = X86_VENDOR_UNKNOWN;
 	for(i = 0; i < ARRAY_SIZE(x86_vendors); i++) {
 		if (memcmp(vendor_name, x86_vendors[i].name, 12) == 0) {
@@ -253,13 +255,14 @@ void cpu_initialize(unsigned int index)
 	post_log_path(cpu);
 
 	/* Find what type of cpu we are dealing with */
-	identify_cpu(cpu);
-	printk(BIOS_DEBUG, "CPU: vendor %s device %x\n",
+	identify_cpu(cpu); // 获取cpu信息
+	printk(BIOS_DEBUG, "CPU: vendor %s device 0x%x\n",
 		cpu_vendor_name(cpu->vendor), cpu->device);
 
-	get_fms(&c, cpu->device);
+	get_fms(&c, cpu->device); // fms难道是family model stepping的意思?
 
-	printk(BIOS_DEBUG, "CPU: family %02x, model %02x, stepping %02x\n",
+	/* 打开CPU family、model，例如0x06_0x37表示atom e3000系列(e3800也在其中)，参考IA32手册卷3第35章表格1 */
+	printk(BIOS_DEBUG, "CPU: family 0x%02x, model 0x%02x, stepping 0x%02x\n",
 		c.x86, c.x86_model, c.x86_mask);
 
 	/* Lookup the cpu's operations */
@@ -268,7 +271,7 @@ void cpu_initialize(unsigned int index)
 	if(!cpu->ops) {
 		/* mask out the stepping and try again */
 		cpu->device -= c.x86_mask;
-		set_cpu_ops(cpu);
+		set_cpu_ops(cpu); // 设置操作函数
 		cpu->device += c.x86_mask;
 		if(!cpu->ops) die("Unknown cpu");
 		printk(BIOS_DEBUG, "Using generic cpu ops (good)\n");
@@ -278,8 +281,8 @@ void cpu_initialize(unsigned int index)
 	/* Initialize the cpu */
 	if (cpu->ops && cpu->ops->init) {
 		cpu->enabled = 1;
-		cpu->initialized = 1;
-		cpu->ops->init(cpu);
+		cpu->initialized = 1; // 已经初始化好了
+		cpu->ops->init(cpu); // 调用具体的init函数 如baytrail的为baytrail_core_init
 	}
 	post_log_clear();
 
