@@ -78,7 +78,7 @@ static void fill_in_pattrs(void)
 	msr_t msr;
 	struct pattrs *attrs = (struct pattrs *)pattrs_get();
 
-	attrs->cpuid = cpuid_eax(1);
+	attrs->cpuid = cpuid_eax(1); // 执行cpuid指令，eax为1，获取处理器信息
 	dev = dev_find_slot(0, PCI_DEVFN(LPC_DEV, LPC_FUNC));
 	attrs->revid = pci_read_config8(dev, REVID);
 	/* The revision to stepping IDs have two values per metal stepping. */
@@ -97,10 +97,10 @@ static void fill_in_pattrs(void)
 	}
 
 	attrs->microcode_patch = intel_microcode_find();
-	attrs->address_bits = cpuid_eax(0x80000008) & 0xff;
+	attrs->address_bits = cpuid_eax(0x80000008) & 0xff; // eax为0x80000008，获取最大的虚拟/物理地址大小
 	detect_num_cpus(attrs);
 
-	/* 打印CPUID或核心、版本 */
+	/* 打印CPUID、核心、版本 */
 	if (SHOW_PATTRS) {
 		printk(BIOS_DEBUG,
 		       "CPUID: %08x\nCores: %d\nRevision ID: %02x\nStepping: %s\n",

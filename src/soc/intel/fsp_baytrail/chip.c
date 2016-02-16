@@ -39,7 +39,7 @@ static struct device_operations cpu_bus_ops = {
 	.read_resources   = DEVICE_NOOP,
 	.set_resources    = DEVICE_NOOP,
 	.enable_resources = DEVICE_NOOP,
-	.init             = baytrail_init_cpus,
+	.init             = baytrail_init_cpus,	// 在cpu.c文件实现
 	.scan_bus         = NULL,
 };
 
@@ -53,7 +53,7 @@ static void enable_dev(device_t dev)
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {
 		dev->ops = &pci_domain_ops;
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
-		dev->ops = &cpu_bus_ops;
+		dev->ops = &cpu_bus_ops; // 总结操作
 	} else if (dev->path.type == DEVICE_PATH_PCI) {
 		/* Handle south cluster enablement. */
 		if (PCI_SLOT(dev->path.pci.devfn) > GFX_DEV &&

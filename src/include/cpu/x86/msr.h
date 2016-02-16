@@ -39,6 +39,9 @@ typedef struct msrinit_struct
  * these functions to always be inlined by adding the qualifier
  * __attribute__((always_inline)) to their declaration.
  */
+// msr,Model Specific Register，使用rdmsr、wrmsr分别读写MSR
+// rdmsr读取64比特MSR数据放到edx和eax (分别为高低32比特) wrms同理
+// 寄存器索引在ecx中
 static inline __attribute__((always_inline)) msr_t rdmsr(unsigned index)
 {
 	msr_t result;

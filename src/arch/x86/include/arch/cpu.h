@@ -11,6 +11,8 @@
  * GNU General Public License for more details.
  */
 
+// 本文件为cpuid指令的实现，有关资料参阅wiki: https://en.wikipedia.org/wiki/CPUID
+
 #ifndef ARCH_CPU_H
 #define ARCH_CPU_H
 

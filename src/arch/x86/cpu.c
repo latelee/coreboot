@@ -186,7 +186,7 @@ static void identify_cpu(struct device *cpu)
 
 		/* Intel-defined flags: level 0x00000001 */
 		if (cpuid_level >= 0x00000001) {
-			cpu->device = cpuid_eax(0x00000001);
+			cpu->device = cpuid_eax(0x00000001); // eax为1，获取cpu信息，如family/model/stepping
 		}
 		else {
 			/* Have CPUID level 0 only unheard of */
@@ -253,11 +253,11 @@ void cpu_initialize(unsigned int index)
 	post_log_path(cpu);
 
 	/* Find what type of cpu we are dealing with */
-	identify_cpu(cpu);
+	identify_cpu(cpu); // 获取cpu信息
 	printk(BIOS_DEBUG, "CPU: vendor %s device %x\n",
 		cpu_vendor_name(cpu->vendor), cpu->device);
 
-	get_fms(&c, cpu->device);
+	get_fms(&c, cpu->device); // 难道是family model stepping的意思?
 
 	printk(BIOS_DEBUG, "CPU: family %02x, model %02x, stepping %02x\n",
 		c.x86, c.x86_model, c.x86_mask);
@@ -268,7 +268,7 @@ void cpu_initialize(unsigned int index)
 	if(!cpu->ops) {
 		/* mask out the stepping and try again */
 		cpu->device -= c.x86_mask;
-		set_cpu_ops(cpu);
+		set_cpu_ops(cpu); // 设置操作函数
 		cpu->device += c.x86_mask;
 		if(!cpu->ops) die("Unknown cpu");
 		printk(BIOS_DEBUG, "Using generic cpu ops (good)\n");
@@ -278,8 +278,8 @@ void cpu_initialize(unsigned int index)
 	/* Initialize the cpu */
 	if (cpu->ops && cpu->ops->init) {
 		cpu->enabled = 1;
-		cpu->initialized = 1;
-		cpu->ops->init(cpu);
+		cpu->initialized = 1; // 已经初始化好了
+		cpu->ops->init(cpu); // 调用具体的init函数 如baytrail的为baytrail_core_init
 	}
 	post_log_clear();
 
