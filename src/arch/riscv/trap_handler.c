@@ -65,7 +65,9 @@ void handle_supervisor_call(trapframe *tf) {
 			returnValue = mcall_shutdown();
 			break;
 		case SET_TIMER:
-			printk(BIOS_DEBUG, "Setting timer...\n");
+			printk(BIOS_DEBUG,
+			       "Setting timer to %p (current time is %p)...\n",
+			       (void *)arg0, (void *)rdtime());
 			returnValue = mcall_set_timer(arg0);
 			break;
 		case QUERY_MEMORY:
@@ -84,20 +86,18 @@ void handle_supervisor_call(trapframe *tf) {
 
 void trap_handler(trapframe *tf) {
 	write_csr(mscratch, tf);
-	int cause = 0;
-	void* epc = 0;
-	void* badAddr = 0;
+	uintptr_t cause;
+	void *epc;
+	void *badAddr;
 
 	// extract cause
-	asm("csrr t0, mcause");
-	asm("move %0, t0" : "=r"(cause));
+	asm("csrr %0, mcause" : "=r"(cause));
 
 	// extract faulting Instruction pc
 	epc = (void*) tf->epc;
 
 	// extract bad address
-	asm("csrr t0, mbadaddr");
-	asm("move %0, t0" : "=r"(badAddr));
+	asm("csrr %0, mbadaddr" : "=r"(badAddr));
 
 	switch(cause) {
 		case 0:
@@ -149,7 +149,8 @@ void trap_handler(trapframe *tf) {
 			printk(BIOS_DEBUG, "Trap: Environment call from M-mode\n");
 			break;
 		default:
-			printk(BIOS_DEBUG, "Trap: Unknown cause\n");
+			printk(BIOS_DEBUG, "Trap: Unknown cause %p\n",
+			       (void *)cause);
 			break;
 	}
 	printk(BIOS_DEBUG, "Stored ra: %p\n", (void*) tf->gpr[1]);

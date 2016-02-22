@@ -16,9 +16,8 @@
 #ifndef __MIPS_ARCH_STAGES_H
 #define __MIPS_ARCH_STAGES_H
 
-extern void main(void);
+#include <main_decl.h>
 
 void stage_entry(void);
-void stage_exit(void *);
 
 #endif /* __MIPS_ARCH_STAGES_H */

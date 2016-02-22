@@ -49,4 +49,16 @@ config HAVE_ME_BIN
 	bool
 	default n
 
+config EC_GOOGLE_CHROMEEC_BOARDNAME
+	string
+	default "samus"
+
+config EC_GOOGLE_CHROMEEC_PD_BOARDNAME
+	string
+	default "samus_pd"
+
+config GBB_HWID
+	string
+	depends on CHROMEOS
+	default "SAMUS TEST 8028"
 endif

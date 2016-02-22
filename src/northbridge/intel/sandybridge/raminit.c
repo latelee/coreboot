@@ -24,12 +24,14 @@
 #include <cbfs.h>
 #include <halt.h>
 #include <ip_checksum.h>
+#include <timestamp.h>
 #include <pc80/mc146818rtc.h>
 #include <device/pci_def.h>
 #include "raminit_native.h"
 #include "sandybridge.h"
 #include <delay.h>
 #include <lib.h>
+#include <device/device.h>
 
 /* Management Engine is in the southbridge */
 #include "southbridge/intel/bd82x6x/me.h"
@@ -37,6 +39,7 @@
 #include "southbridge/intel/bd82x6x/smbus.h"
 #include "arch/cpu.h"
 #include "cpu/x86/msr.h"
+#include <northbridge/intel/sandybridge/chip.h>
 
 /* FIXME: no ECC support.  */
 /* FIXME: no support for 3-channel chipsets.  */
@@ -281,7 +284,7 @@ void read_spd(spd_raw_data * spd, u8 addr)
 static void dram_find_spds_ddr3(spd_raw_data * spd, dimm_info * dimm,
 				ramctr_timing * ctrl)
 {
-	int dimms = 0;
+	int dimms = 0, dimms_on_channel;
 	int channel, slot, spd_slot;
 
 	memset (ctrl->rankmap, 0, sizeof (ctrl->rankmap));
@@ -292,9 +295,37 @@ static void dram_find_spds_ddr3(spd_raw_data * spd, dimm_info * dimm,
 	FOR_ALL_CHANNELS {
 		ctrl->channel_size_mb[channel] = 0;
 
+		dimms_on_channel = 0;
+		/* count dimms on channel */
 		for (slot = 0; slot < NUM_SLOTS; slot++) {
 			spd_slot = 2 * channel + slot;
 			spd_decode_ddr3(&dimm->dimm[channel][slot], spd[spd_slot]);
+			if (dimm->dimm[channel][slot].dram_type == SPD_MEMORY_TYPE_SDRAM_DDR3)
+				dimms_on_channel++;
+		}
+
+		for (slot = 0; slot < NUM_SLOTS; slot++) {
+			spd_slot = 2 * channel + slot;
+			/* search for XMP profile */
+			spd_xmp_decode_ddr3(&dimm->dimm[channel][slot],
+					spd[spd_slot],
+					DDR3_XMP_PROFILE_1);
+
+			if (dimm->dimm[channel][slot].dram_type != SPD_MEMORY_TYPE_SDRAM_DDR3) {
+				printram("No valid XMP profile found.\n");
+				spd_decode_ddr3(&dimm->dimm[channel][slot], spd[spd_slot]);
+			} else if (dimms_on_channel > dimm->dimm[channel][slot].dimms_per_channel) {
+				printram("XMP profile supports %u DIMMs, but %u DIMMs are installed.\n",
+						 dimm->dimm[channel][slot].dimms_per_channel,
+						 dimms_on_channel);
+				spd_decode_ddr3(&dimm->dimm[channel][slot], spd[spd_slot]);
+			} else if (dimm->dimm[channel][slot].voltage != 1500) {
+				/* TODO: support other DDR3 voltage than 1500mV */
+				printram("XMP profile's requested %u mV is unsupported.\n",
+						 dimm->dimm[channel][slot].voltage);
+				spd_decode_ddr3(&dimm->dimm[channel][slot], spd[spd_slot]);
+			}
+
 			if (dimm->dimm[channel][slot].dram_type != SPD_MEMORY_TYPE_SDRAM_DDR3) {
 				// set dimm invalid
 				dimm->dimm[channel][slot].ranks = 0;
@@ -312,7 +343,8 @@ static void dram_find_spds_ddr3(spd_raw_data * spd, dimm_info * dimm,
 			ctrl->extended_temperature_range &= dimm->dimm[channel][slot].flags.ext_temp_refresh;
 
 			ctrl->rankmap[channel] |= ((1 << dimm->dimm[channel][slot].ranks) - 1) << (2 * slot);
-			printk(BIOS_DEBUG, "rankmap[%d] = 0x%x\n", channel, ctrl->rankmap[channel]);
+			printk(BIOS_DEBUG, "channel[%d] rankmap = 0x%x\n",
+			       channel, ctrl->rankmap[channel]);
 		}
 		if ((ctrl->rankmap[channel] & 3) && (ctrl->rankmap[channel] & 0xc)
 			&& dimm->dimm[channel][0].reference_card <= 5 && dimm->dimm[channel][1].reference_card <= 5) {
@@ -496,6 +528,28 @@ static u32 get_COMP2(u32 tCK)
 		0xC6369CC, 0xC42514C, 0xC21410C
 	};
 	return frq_comp2_map[get_FRQ(tCK) - 3];
+}
+
+static u32 get_XOVER_CLK(u8 rankmap)
+{
+	return rankmap << 24;
+}
+
+static u32 get_XOVER_CMD(u8 rankmap)
+{
+	u32 reg;
+
+	// enable xover cmd
+	reg = 0x4000;
+
+	// enable xover ctl
+	if (rankmap & 0x3)
+		reg |= 0x20000;
+
+	if (rankmap & 0xc)
+		reg |= 0x4000000;
+
+	return reg;
 }
 
 static void dram_timing(ramctr_timing * ctrl)
@@ -699,22 +753,15 @@ static void dram_xover(ramctr_timing * ctrl)
 
 	FOR_ALL_CHANNELS {
 		// enable xover clk
-		printk(BIOS_DEBUG, "[%x] = %x\n", channel * 0x100 + 0xc14,
-		       (ctrl->rankmap[channel] << 24));
-		MCHBAR32(channel * 0x100 + 0xc14) = (ctrl->rankmap[channel] << 24);
+		reg = get_XOVER_CLK(ctrl->rankmap[channel]);
+		printram("XOVER CLK [%x] = %x\n", channel * 0x100 + 0xc14,
+			 reg);
+		MCHBAR32(channel * 0x100 + 0xc14) = reg;
 
-		// enable xover ctl
-		reg = 0;
-		if (ctrl->rankmap[channel] & 0x5) {
-			reg |= 0x20000;
-		}
-		if (ctrl->rankmap[channel] & 0xa) {
-			reg |= 0x4000000;
-		}
-		// enable xover cmd
-		reg |= 0x4000;
-		printk(BIOS_DEBUG, "[%x] = %x\n", 0x100 * channel + 0x320c,
-		       reg);
+		// enable xover ctl & xover cmd
+		reg = get_XOVER_CMD(ctrl->rankmap[channel]);
+		printram("XOVER CMD [%x] = %x\n", 0x100 * channel + 0x320c,
+			 reg);
 		MCHBAR32(0x100 * channel + 0x320c) = reg;
 	}
 }
@@ -733,8 +780,7 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 		reg |= (ctrl->CAS << 8);
 		reg |= (ctrl->CWL << 12);
 		reg |= (ctrl->tRAS << 16);
-		printk(BIOS_DEBUG, "[%x] = %x\n", 0x400 * channel + 0x4000,
-		       reg);
+		printram("DBP [%x] = %x\n", 0x400 * channel + 0x4000, reg);
 		MCHBAR32(0x400 * channel + 0x4000) = reg;
 
 		// RAP
@@ -746,8 +792,7 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 		reg |= (ctrl->tFAW << 16);
 		reg |= (ctrl->tWR << 24);
 		reg |= (3 << 30);
-		printk(BIOS_DEBUG, "[%x] = %x\n", 0x400 * channel + 0x4004,
-		       reg);
+		printram("RAP [%x] = %x\n", 0x400 * channel + 0x4004, reg);
 		MCHBAR32(0x400 * channel + 0x4004) = reg;
 
 		// OTHP
@@ -757,7 +802,7 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 		reg |= (ctrl->tXP << 5);
 		reg |= (ctrl->tAONPD << 8);
 		reg |= 0xa0000;
-		printk(BIOS_DEBUG, "[%x] = %x\n", addr, reg);
+		printram("OTHP [%x] = %x\n", addr, reg);
 		MCHBAR32(addr) = reg;
 
 		MCHBAR32(0x400 * channel + 0x4014) = 0;
@@ -773,7 +818,7 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 		    || (IS_SANDY_CPU(cpu) && IS_SANDY_CPU_D2(cpu))) {
 			stretch = 2;
 			addr = 0x400 * channel + 0x400c;
-			printk(BIOS_DEBUG, "[%x] = %x\n",
+			printram("ODT stretch [%x] = %x\n",
 			       0x400 * channel + 0x400c, reg);
 			reg = MCHBAR32(addr);
 
@@ -786,7 +831,7 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 				// Rank 2 - operate on rank 0
 				reg = (reg & ~0x30000) | (stretch << 16);
 
-				printk(BIOS_DEBUG, "[%x] = %x\n", addr, reg);
+				printram("ODT stretch [%x] = %x\n", addr, reg);
 				MCHBAR32(addr) = reg;
 			}
 
@@ -804,7 +849,7 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 				// Rank 2 - operate on rank 0
 				reg = (reg & ~0xc00) | (stretch << 10);
 
-				printk(BIOS_DEBUG, "[%x] = %x\n", addr, reg);
+				printram("ODT stretch [%x] = %x\n", addr, reg);
 				MCHBAR32(addr) = reg;
 			}
 		} else {
@@ -819,7 +864,7 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 		reg = (reg & ~0x1ff0000) | (val32 << 16);
 		val32 = (u32) (ctrl->tREFI * 9) / 1024;
 		reg = (reg & ~0xfe000000) | (val32 << 25);
-		printk(BIOS_DEBUG, "[%x] = %x\n", 0x400 * channel + 0x4298,
+		printram("REFI [%x] = %x\n", 0x400 * channel + 0x4298,
 		       reg);
 		MCHBAR32(0x400 * channel + 0x4298) = reg;
 
@@ -835,7 +880,7 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 		reg = (reg & ~0x3ff0000) | (val32 << 16);
 		val32 = ctrl->tMOD - 8;
 		reg = (reg & ~0xf0000000) | (val32 << 28);
-		printk(BIOS_DEBUG, "[%x] = %x\n", 0x400 * channel + 0x42a4,
+		printram("SRFTP [%x] = %x\n", 0x400 * channel + 0x42a4,
 		       reg);
 		MCHBAR32(0x400 * channel + 0x42a4) = reg;
 	}
@@ -989,39 +1034,40 @@ static void dram_memorymap(ramctr_timing * ctrl, int me_uma_size)
 	}
 
 	// Update memory map in pci-e configuration space
+	printk(BIOS_DEBUG, "Update PCI-E configuration space:\n");
 
 	// TOM (top of memory)
 	reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0xa0);
 	val = tom & 0xfff;
 	reg = (reg & ~0xfff00000) | (val << 20);
-	printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0xa0, reg);
+	printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0xa0, reg);
 	pcie_write_config32(PCI_DEV(0, 0, 0), 0xa0, reg);
 
 	reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0xa4);
 	val = tom & 0xfffff000;
 	reg = (reg & ~0x000fffff) | (val >> 12);
-	printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0xa4, reg);
+	printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0xa4, reg);
 	pcie_write_config32(PCI_DEV(0, 0, 0), 0xa4, reg);
 
 	// TOLUD (top of low used dram)
 	reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0xbc);
 	val = toludbase & 0xfff;
 	reg = (reg & ~0xfff00000) | (val << 20);
-	printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0xbc, reg);
+	printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0xbc, reg);
 	pcie_write_config32(PCI_DEV(0, 0, 0), 0xbc, reg);
 
 	// TOUUD LSB (top of upper usable dram)
 	reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0xa8);
 	val = touudbase & 0xfff;
 	reg = (reg & ~0xfff00000) | (val << 20);
-	printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0xa8, reg);
+	printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0xa8, reg);
 	pcie_write_config32(PCI_DEV(0, 0, 0), 0xa8, reg);
 
 	// TOUUD MSB
 	reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0xac);
 	val = touudbase & 0xfffff000;
 	reg = (reg & ~0x000fffff) | (val >> 12);
-	printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0xac, reg);
+	printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0xac, reg);
 	pcie_write_config32(PCI_DEV(0, 0, 0), 0xac, reg);
 
 	if (reclaim) {
@@ -1037,41 +1083,41 @@ static void dram_memorymap(ramctr_timing * ctrl, int me_uma_size)
 	reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0xb8);
 	val = tsegbase & 0xfff;
 	reg = (reg & ~0xfff00000) | (val << 20);
-	printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0xb8, reg);
+	printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0xb8, reg);
 	pcie_write_config32(PCI_DEV(0, 0, 0), 0xb8, reg);
 
 	// GFX stolen memory
 	reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0xb0);
 	val = gfxstolenbase & 0xfff;
 	reg = (reg & ~0xfff00000) | (val << 20);
-	printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0xb0, reg);
+	printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0xb0, reg);
 	pcie_write_config32(PCI_DEV(0, 0, 0), 0xb0, reg);
 
 	// GTT stolen memory
 	reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0xb4);
 	val = gttbase & 0xfff;
 	reg = (reg & ~0xfff00000) | (val << 20);
-	printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0xb4, reg);
+	printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0xb4, reg);
 	pcie_write_config32(PCI_DEV(0, 0, 0), 0xb4, reg);
 
 	if (me_uma_size) {
 		reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0x7c);
 		val = (0x80000 - me_uma_size) & 0xfffff000;
 		reg = (reg & ~0x000fffff) | (val >> 12);
-		printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0x7c, reg);
+		printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0x7c, reg);
 		pcie_write_config32(PCI_DEV(0, 0, 0), 0x7c, reg);
 
 		// ME base
 		reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0x70);
 		val = mestolenbase & 0xfff;
 		reg = (reg & ~0xfff00000) | (val << 20);
-		printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0x70, reg);
+		printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0x70, reg);
 		pcie_write_config32(PCI_DEV(0, 0, 0), 0x70, reg);
 
 		reg = pcie_read_config32(PCI_DEV(0, 0, 0), 0x74);
 		val = mestolenbase & 0xfffff000;
 		reg = (reg & ~0x000fffff) | (val >> 12);
-		printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0x74, reg);
+		printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0x74, reg);
 		pcie_write_config32(PCI_DEV(0, 0, 0), 0x74, reg);
 
 		// ME mask
@@ -1081,7 +1127,7 @@ static void dram_memorymap(ramctr_timing * ctrl, int me_uma_size)
 		reg = (reg & ~0x400) | (1 << 10);	// set lockbit on ME mem
 
 		reg = (reg & ~0x800) | (1 << 11);	// set ME memory enable
-		printk(BIOS_DEBUG, "PCI:[%x] = %x\n", 0x78, reg);
+		printk(BIOS_DEBUG, "PCI(0, 0, 0)[%x] = %x\n", 0x78, reg);
 		pcie_write_config32(PCI_DEV(0, 0, 0), 0x78, reg);
 	}
 }
@@ -1108,17 +1154,17 @@ static void dram_ioregs(ramctr_timing * ctrl)
 	}
 
 	// Rcomp
-	printk(BIOS_DEBUG, "RCOMP...");
+	printram("RCOMP...");
 	reg = 0;
 	while (reg == 0) {
 		reg = MCHBAR32(0x5084) & 0x10000;
 	}
-	printk(BIOS_DEBUG, "done\n");
+	printram("done\n");
 
 	// Set comp2
 	comp2 = get_COMP2(ctrl->tCK);
 	MCHBAR32(0x3714) = comp2;
-	printk(BIOS_DEBUG, "COMP2 done\n");
+	printram("COMP2 done\n");
 
 	// Set comp1
 	FOR_ALL_POPULATED_CHANNELS {
@@ -1128,12 +1174,12 @@ static void dram_ioregs(ramctr_timing * ctrl)
 		reg = (reg & ~0x38000000) | (1 << 27);	//ctl drive up
 		MCHBAR32(0x1810 + channel * 0x100) = reg;
 	}
-	printk(BIOS_DEBUG, "COMP1 done\n");
+	printram("COMP1 done\n");
 
-	printk(BIOS_DEBUG, "FORCE RCOMP and wait 20us...");
+	printram("FORCE RCOMP and wait 20us...");
 	MCHBAR32(0x5f08) |= 0x100;
 	udelay(20);
-	printk(BIOS_DEBUG, "done\n");
+	printram("done\n");
 }
 
 static void wait_428c(int channel)
@@ -1242,8 +1288,6 @@ static void write_mrreg(ramctr_timing *ctrl, int channel, int slotrank,
 {
 	wait_428c(channel);
 
-	printram("MRd: %x <= %x\n", reg, val);
-
 	if (ctrl->rank_mirror[channel][slotrank]) {
 		/* DDR3 Rank1 Address mirror
 		 * swap the following pins:
@@ -1252,8 +1296,6 @@ static void write_mrreg(ramctr_timing *ctrl, int channel, int slotrank,
 		val = (val & ~0x1f8) | ((val >> 1) & 0xa8)
 		    | ((val & 0xa8) << 1);
 	}
-
-	printram("MRd: %x <= %x\n", reg, val);
 
 	/* DRAM command MRS */
 	write32(DEFAULT_MCHBAR + 0x4220 + 0x400 * channel, 0x0f000);
@@ -1493,14 +1535,16 @@ static void program_timings(ramctr_timing * ctrl, int channel)
 			break;
 		}
 
-	reg32 = (1 << 17) | (1 << 14);
+	/* enable CMD XOVER */
+	reg32 = get_XOVER_CMD(ctrl->rankmap[channel]);
 	reg32 |= ((slot320c[0] & 0x3f) << 6) | ((slot320c[0] & 0x40) << 9);
 	reg32 |= (slot320c[1] & 0x7f) << 18;
 	reg32 |= (full_shift & 0x3f) | ((full_shift & 0x40) << 6);
 
 	MCHBAR32(0x320c + 0x100 * channel) = reg32;
 
-	reg_c14 = ctrl->rankmap[channel] << 24;
+	/* enable CLK XOVER */
+	reg_c14 = get_XOVER_CLK(ctrl->rankmap[channel]);
 	reg_c18 = 0;
 
 	FOR_ALL_POPULATED_RANKS {
@@ -1510,6 +1554,7 @@ static void program_timings(ramctr_timing * ctrl, int channel)
 		if (shift < 0)
 			shift = 0;
 		offset_val_c14 = ctrl->reg_c14_offset + shift;
+		/* set CLK phase shift */
 		reg_c14 |= (offset_val_c14 & 0x3f) << (6 * slotrank);
 		reg_c18 |= ((offset_val_c14 >> 6) & 1) << slotrank;
 	}
@@ -1586,8 +1631,8 @@ static void program_timings(ramctr_timing * ctrl, int channel)
 			     (((ctrl->timings[channel][slotrank].lanes[lane].
 				timA + shift -
 				(post_timA_min_high << 6)) & 0x1c0) << 10)
-			     | (ctrl->timings[channel][slotrank].lanes[lane].
-				falling << 20));
+			     | ((ctrl->timings[channel][slotrank].lanes[lane].
+				falling + shift) << 20));
 
 			MCHBAR32(lane_registers[lane] + 0x20 + 0x100 * channel +
 				 4 * slotrank)
@@ -1720,7 +1765,7 @@ static void discover_timA_coarse(ramctr_timing * ctrl, int channel,
 		FOR_ALL_LANES {
 			statistics[lane][timA] =
 			    !does_lane_work(ctrl, channel, slotrank, lane);
-			printram("Astat: %d, %d, %d, %x, %x\n",
+			printram("Astat: %d, %d, %d: %x, %x\n",
 			       channel, slotrank, lane, timA,
 			       statistics[lane][timA]);
 		}
@@ -1731,9 +1776,9 @@ static void discover_timA_coarse(ramctr_timing * ctrl, int channel,
 		upperA[lane] = rn.end;
 		if (upperA[lane] < rn.middle)
 			upperA[lane] += 128;
-		printram("Aval: %d, %d, %d, %x\n", channel, slotrank,
+		printram("Aval: %d, %d, %d: %x\n", channel, slotrank,
 		       lane, ctrl->timings[channel][slotrank].lanes[lane].timA);
-		printram("Aend: %d, %d, %d, %x\n", channel, slotrank,
+		printram("Aend: %d, %d, %d: %x\n", channel, slotrank,
 		       lane, upperA[lane]);
 	}
 }
@@ -1777,7 +1822,7 @@ static void discover_timA_fine(ramctr_timing * ctrl, int channel, int slotrank,
 
 		ctrl->timings[channel][slotrank].lanes[lane].timA =
 		    (last_zero + first_all) / 2 + upperA[lane];
-		printram("Aval: %d, %d, %d, %x\n", channel, slotrank,
+		printram("Aval: %d, %d, %d: %x\n", channel, slotrank,
 		       lane, ctrl->timings[channel][slotrank].lanes[lane].timA);
 	}
 }
@@ -1968,8 +2013,9 @@ static void read_training(ramctr_timing * ctrl)
 		       ctrl->timings[channel][slotrank].val_4024,
 		       ctrl->timings[channel][slotrank].val_4028);
 
+		printram("final results:\n");
 		FOR_ALL_LANES
-		    printram("%d, %d, %d, %x\n", channel, slotrank,
+		    printram("Aval: %d, %d, %d: %x\n", channel, slotrank,
 			   lane,
 			   ctrl->timings[channel][slotrank].lanes[lane].timA);
 
@@ -2109,8 +2155,8 @@ static void discover_timC(ramctr_timing * ctrl, int channel, int slotrank)
 		    get_longest_zero_run(statistics[lane], MAX_TIMC + 1);
 		ctrl->timings[channel][slotrank].lanes[lane].timC = rn.middle;
 		if (rn.all)
-			printk(BIOS_CRIT, "timC discovery failed");
-		printram("Cval: %d, %d, %d, %x\n", channel, slotrank,
+			die("timC discovery failed");
+		printram("Cval: %d, %d, %d: %x\n", channel, slotrank,
 		       lane, ctrl->timings[channel][slotrank].lanes[lane].timC);
 	}
 }
@@ -2128,7 +2174,6 @@ static void fill_pattern0(ramctr_timing * ctrl, int channel, u32 a, u32 b)
 	unsigned j;
 	unsigned channel_offset =
 	    get_precedening_channels(ctrl, channel) * 0x40;
-	printram("channel_offset=%x\n", channel_offset);
 	for (j = 0; j < 16; j++)
 		write32((void *)(0x04000000 + channel_offset + 4 * j), j & 2 ? b : a);
 	sfence();
@@ -2165,7 +2210,9 @@ static void precharge(ramctr_timing * ctrl)
 			    16;
 			ctrl->timings[channel][slotrank].lanes[lane].rising =
 			    16;
-		} program_timings(ctrl, channel);
+		}
+
+		program_timings(ctrl, channel);
 
 		FOR_ALL_POPULATED_RANKS {
 			wait_428c(channel);
@@ -2327,27 +2374,17 @@ static void discover_timB(ramctr_timing * ctrl, int channel, int slotrank)
 			       (DEFAULT_MCHBAR + lane_registers[lane] +
 				channel * 0x100 + 4 + ((timB / 32) & 1) * 4)
 			       >> (timB % 32)) & 1);
-			printram("Bstat: %d, %d, %d, %x, %x\n",
+			printram("Bstat: %d, %d, %d: %x, %x\n",
 			       channel, slotrank, lane, timB,
 			       statistics[lane][timB]);
 		}
 	}
 	FOR_ALL_LANES {
 		struct run rn = get_longest_zero_run(statistics[lane], 128);
-		if (rn.start < rn.middle) {
-			ctrl->timings[channel][slotrank].lanes[lane].timB = rn.start;
-		} else {
-			/* In this case statistics[lane][7f] and statistics[lane][0] are
-			 * both zero.
-			 * Prefer a smaller value over rn.start to prevent failures in
-			 * the following write tests.
-			 */
-			ctrl->timings[channel][slotrank].lanes[lane].timB = 0;
-		}
-
+		ctrl->timings[channel][slotrank].lanes[lane].timB = rn.start;
 		if (rn.all)
 			die("timB discovery failed");
-		printram("Bval: %d, %d, %d, %x\n", channel, slotrank,
+		printram("Bval: %d, %d, %d: %x\n", channel, slotrank,
 		       lane, ctrl->timings[channel][slotrank].lanes[lane].timB);
 	}
 }
@@ -2462,7 +2499,7 @@ static void adjust_high_timB(ramctr_timing * ctrl)
 			ctrl->timings[channel][slotrank].lanes[lane].timB +=
 				get_timB_high_adjust(res) * 64;
 
-			printk(BIOS_DEBUG, "High adjust %d:%016llx\n", lane, res);
+			printram("High adjust %d:%016llx\n", lane, res);
 			printram("Bval+: %d, %d, %d, %x -> %x\n", channel,
 				slotrank, lane, old,
 				ctrl->timings[channel][slotrank].lanes[lane].
@@ -2824,7 +2861,7 @@ static int try_cmd_stretch(ramctr_timing * ctrl, int cmd_stretch)
 			FOR_ALL_POPULATED_RANKS {
 				stat[slotrank][c320c + 127] =
 				    test_320c(ctrl, channel, slotrank);
-				printram("3stat: %d, %d, %d: %d\n",
+				printram("3stat: %d, %d, %d: %x\n",
 				       channel, slotrank, c320c,
 				       stat[slotrank][c320c + 127]);
 			}
@@ -2885,7 +2922,6 @@ static void discover_edges_real(ramctr_timing * ctrl, int channel, int slotrank,
 			ctrl->timings[channel][slotrank].lanes[lane].falling =
 			    edge;
 		}
-		printram("edge %02x\n", edge);
 		program_timings(ctrl, channel);
 
 		FOR_ALL_LANES {
@@ -2947,7 +2983,7 @@ static void discover_edges_real(ramctr_timing * ctrl, int channel, int slotrank,
 		edges[lane] = rn.middle;
 		if (rn.all)
 			die("edge discovery failed");
-		printram("eval %d, %d, %d, %02x\n", channel, slotrank,
+		printram("eval %d, %d, %d: %02x\n", channel, slotrank,
 		       lane, edges[lane]);
 	}
 }
@@ -3108,6 +3144,7 @@ static void discover_edges(ramctr_timing * ctrl)
 
 	/* FIXME: under some conditions (older chipsets?) vendor BIOS sets both edges to the same value.  */
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0x300);
+	printram("discover falling edges:\n[%x] = %x\n", 0x4eb0, 0x300);
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
 		discover_edges_real(ctrl, channel, slotrank,
@@ -3115,6 +3152,7 @@ static void discover_edges(ramctr_timing * ctrl)
 	}
 
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0x200);
+	printram("discover rising edges:\n[%x] = %x\n", 0x4eb0, 0x200);
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
 		discover_edges_real(ctrl, channel, slotrank,
@@ -3160,13 +3198,12 @@ static void discover_edges_write_real(ramctr_timing * ctrl, int channel,
 	for (i = 0; i < 3; i++) {
 		write32(DEFAULT_MCHBAR + 0x3000 + 0x100 * channel,
 			reg3000b24[i] << 24);
+		printram("[%x] = 0x%08x\n",
+		       0x3000 + 0x100 * channel, reg3000b24[i] << 24);
 		for (pat = 0; pat < NUM_PATTERNS; pat++) {
 			fill_pattern5(ctrl, channel, pat);
 			write32(DEFAULT_MCHBAR + 0x4288 + 0x400 * channel, 0x1f);
-			printram("patterned\n");
-			printram("[%x] = 0x%08x\n(%d, %d)\n",
-			       0x3000 + 0x100 * channel, reg3000b24[i] << 24, channel,
-			       slotrank);
+			printram("using pattern %d\n", pat);
 			for (edge = 0; edge <= MAX_EDGE_TIMING; edge++) {
 				FOR_ALL_LANES {
 					ctrl->timings[channel][slotrank].lanes[lane].
@@ -3244,7 +3281,7 @@ static void discover_edges_write_real(ramctr_timing * ctrl, int channel,
 						! !(raw_statistics[edge] & (1 << lane));
 				rn = get_longest_zero_run(statistics,
 							  MAX_EDGE_TIMING + 1);
-				printram("edges: %d, %d, %d: 0x%x-0x%x-0x%x, 0x%x-0x%x\n",
+				printram("edges: %d, %d, %d: 0x%02x-0x%02x-0x%02x, 0x%02x-0x%02x\n",
 					 channel, slotrank, i, rn.start, rn.middle,
 					 rn.end, rn.start + ctrl->edge_offset[i],
 					 rn.end - ctrl->edge_offset[i]);
@@ -3272,6 +3309,7 @@ static void discover_edges_write(ramctr_timing * ctrl)
 
 	/* FIXME: under some conditions (older chipsets?) vendor BIOS sets both edges to the same value.  */
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0x300);
+	printram("discover falling edges write:\n[%x] = %x\n", 0x4eb0, 0x300);
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
 		discover_edges_write_real(ctrl, channel, slotrank,
@@ -3279,6 +3317,7 @@ static void discover_edges_write(ramctr_timing * ctrl)
 	}
 
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0x200);
+	printram("discover rising edges write:\n[%x] = %x\n", 0x4eb0, 0x200);
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
 		discover_edges_write_real(ctrl, channel, slotrank,
@@ -3368,6 +3407,7 @@ static void discover_timC_write(ramctr_timing * ctrl)
 	}
 
 	write32(DEFAULT_MCHBAR + 0x4ea8, 1);
+	printram("discover timC write:\n");
 
 	for (i = 0; i < 3; i++)
 		FOR_ALL_POPULATED_CHANNELS {
@@ -3404,7 +3444,7 @@ static void discover_timC_write(ramctr_timing * ctrl)
 									  MAX_TIMC + 1);
 						if (rn.all)
 							die("timC write discovery failed");
-						printram("timC: %d, %d, %d: 0x%x-0x%x-0x%x, 0x%x-0x%x\n",
+						printram("timC: %d, %d, %d: 0x%02x-0x%02x-0x%02x, 0x%02x-0x%02x\n",
 							 channel, slotrank, i, rn.start,
 							 rn.middle, rn.end,
 							 rn.start + ctrl->timC_offset[i],
@@ -3433,7 +3473,7 @@ static void discover_timC_write(ramctr_timing * ctrl)
 	printram("CPB\n");
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS FOR_ALL_LANES {
-		printram("timC [%d, %d, %d] = 0x%x\n", channel,
+		printram("timC %d, %d, %d: %x\n", channel,
 		       slotrank, lane,
 		       (lower[channel][slotrank][lane] +
 			upper[channel][slotrank][lane]) / 2);
@@ -3483,8 +3523,8 @@ static void channel_test(ramctr_timing * ctrl)
 	int channel, slotrank, lane;
 
 	FOR_ALL_POPULATED_CHANNELS
-	    if (read32(DEFAULT_MCHBAR + 0x42a0 + (channel << 10)) & 0xa000)
-		 die("Mini channel test failed (1)\n");
+		if (read32(DEFAULT_MCHBAR + 0x42a0 + (channel << 10)) & 0xa000)
+			die("Mini channel test failed (1)\n");
 	FOR_ALL_POPULATED_CHANNELS {
 		fill_pattern0(ctrl, channel, 0x12345678, 0x98765432);
 
@@ -3526,8 +3566,8 @@ static void channel_test(ramctr_timing * ctrl)
 		write32(DEFAULT_MCHBAR + 0x4284 + (channel << 10), 0x000c0001);
 		wait_428c(channel);
 		FOR_ALL_LANES
-		    if (read32(DEFAULT_MCHBAR + 0x4340 + (channel << 10) + 4 * lane))
-			 die("Mini channel test failed (2)\n");
+			if (read32(DEFAULT_MCHBAR + 0x4340 + (channel << 10) + 4 * lane))
+				die("Mini channel test failed (2)\n");
 	}
 }
 
@@ -4025,4 +4065,45 @@ void init_dram_ddr3(spd_raw_data * spds, int mobile, int min_tck,
 		outb(0x6, 0xcf9);
 		halt();
 	}
+}
+
+#define HOST_BRIDGE	PCI_DEVFN(0, 0)
+#define DEFAULT_TCK	TCK_800MHZ
+
+static unsigned int get_mem_min_tck(void)
+{
+	const struct device *dev;
+	const struct northbridge_intel_sandybridge_config *cfg;
+
+	dev = dev_find_slot(0, HOST_BRIDGE);
+	if (!(dev && dev->chip_info))
+		return DEFAULT_TCK;
+
+	cfg = dev->chip_info;
+
+	/* If this is zero, it just means devicetree.cb didn't set it */
+	if (cfg->max_mem_clock_mhz == 0)
+		return DEFAULT_TCK;
+
+	if (cfg->max_mem_clock_mhz >= 800)
+		return TCK_800MHZ;
+	else if (cfg->max_mem_clock_mhz >= 666)
+		return TCK_666MHZ;
+	else if (cfg->max_mem_clock_mhz >= 533)
+		return TCK_533MHZ;
+	return TCK_400MHZ;
+}
+
+void perform_raminit(int s3resume)
+{
+	spd_raw_data spd[4];
+
+	post_code(0x3a);
+
+	memset (spd, 0, sizeof (spd));
+	mainboard_get_spd(spd);
+
+	timestamp_add_now(TS_BEFORE_INITRAM);
+
+	init_dram_ddr3(spd, 1, get_mem_min_tck(), s3resume);
 }

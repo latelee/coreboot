@@ -31,6 +31,7 @@
 #define PT_GR		3
 #define PT_AS		4
 #define PT_C3		5
+#define PT_FM2		6
 
 #define J_MIN		0		/* j loop constraint. 1=CL 2.0 T*/
 #define J_MAX		5		/* j loop constraint. 5=CL 7.0 T*/
@@ -597,6 +598,7 @@ struct DCTStatStruc {		/* A per Node structure*/
 	u8 DqsRcvEnGrossMin;
 	u8 WrDatGrossMax;
 	u8 WrDatGrossMin;
+	uint8_t tcwl_delay[2];
 
 	u16 RegMan1Present;	/* DIMM present bitmap of Register manufacture 1 */
 	u16 RegMan2Present;	/* DIMM present bitmap of Register manufacture 2 */
@@ -729,7 +731,7 @@ struct amd_s3_persistent_mct_channel_data {
 	uint32_t f3x5c;
 	uint32_t f3x60;
 
-	/* Family 15h-specific registers (90 dwords) */
+	/* Family 15h-specific registers (91 dwords) */
 	uint32_t f2x200;
 	uint32_t f2x204;
 	uint32_t f2x208;
@@ -785,8 +787,9 @@ struct amd_s3_persistent_mct_channel_data {
 	uint32_t f2x9cx0d0fc231;
 	uint32_t f2x9cx0d0f0_0_f_31[9];		/* [lane] */
 	uint32_t f2x9cx0d0f8021;
+	uint32_t f2x9cx0d0fe00a;
 
-	/* TOTAL: 342 dwords */
+	/* TOTAL: 343 dwords */
 } __attribute__((packed));
 
 struct amd_s3_persistent_node_data {
@@ -828,7 +831,9 @@ struct amd_s3_persistent_data {
 #define SB_SmallRCVR		13	/* DQS Rcvr En pass window too small (far right of dynamic range)*/
 #define SB_NODQSPOS		14	/* No DQS-DQ passing positions*/
 #define SB_SMALLDQS		15	/* DQS-DQ passing window too small*/
-#define SB_DCBKScrubDis	16	/* DCache scrub requested but not enabled */
+#define SB_DCBKScrubDis		16	/* DCache scrub requested but not enabled */
+#define SB_RetryConfigTrain	17	/* Retry configuration and training */
+#define SB_FatalError		18	/* Fatal training error detected */
 
 /*===============================================================================
 	Local Configuration Status (DCTStatStruc.Status[31:0])

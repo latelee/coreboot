@@ -17,11 +17,8 @@
 #define __ARCH_STAGES_H
 
 #include <stdint.h>
-
-extern void main(void);
+#include <main_decl.h>
 
 void stage_entry(void);
-void stage_exit(void *);
-void jmp_to_elf_entry(void *entry, unsigned long buffer, unsigned long size);
 
 #endif

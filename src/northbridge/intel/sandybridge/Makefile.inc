@@ -13,7 +13,7 @@
 # GNU General Public License for more details.
 #
 
-ifeq ($(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE)$(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE_MRC)$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE)$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE_MRC),y)
+ifeq ($(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE)$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE),y)
 
 ramstage-y += ram_calc.c
 ramstage-y += northbridge.c
@@ -25,14 +25,17 @@ ramstage-y += acpi.c
 ramstage-y += mrccache.c
 
 romstage-y += ram_calc.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE_MRC) += raminit_mrc.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE_MRC) += raminit_mrc.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE) += raminit.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE) += romstage.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE) += ../../../device/dram/ddr3.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE) += raminit.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE) += romstage.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE) += ../../../device/dram/ddr3.c
+ifeq ($(CONFIG_USE_NATIVE_RAMINIT),y)
+romstage-y += raminit.c
+romstage-y += ../../../device/dram/ddr3.c
+else
+romstage-y += raminit_mrc.c
+cbfs-files-y += mrc.bin
+mrc.bin-file := $(call strip_quotes,$(CONFIG_MRC_FILE))
+mrc.bin-position := 0xfffa0000
+mrc.bin-type := mrc
+endif
+romstage-y += romstage.c
 romstage-y += mrccache.c
 romstage-y += iommu.c
 romstage-y += early_init.c
@@ -41,12 +44,6 @@ romstage-y += ../../../arch/x86/walkcbfs.S
 
 smm-$(CONFIG_HAVE_SMI_HANDLER) += udelay.c
 smm-$(CONFIG_HAVE_SMI_HANDLER) += finalize.c
-
-# We don't ship that, but booting without it is bound to fail
-cbfs-files-$(CONFIG_HAVE_MRC) += mrc.bin
-mrc.bin-file := $(call strip_quotes,$(CONFIG_MRC_FILE))
-mrc.bin-position := 0xfffa0000
-mrc.bin-type := mrc
 
 ifneq ($(CONFIG_CHROMEOS),y)
 $(obj)/mrc.cache: $(obj)/config.h

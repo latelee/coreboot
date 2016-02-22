@@ -30,6 +30,7 @@
 #include <soc/pci_devs.h>
 #include <soc/pm.h>
 #include <soc/romstage.h>
+#include <vendorcode/google/chromeos/vboot_common.h>
 
 static struct chipset_power_state power_state CAR_GLOBAL;
 
@@ -68,6 +69,14 @@ static uint32_t prev_sleep_state(struct chipset_power_state *ps)
 		}
 		/* Clear SLP_TYP. */
 		outl(ps->pm1_cnt & ~(SLP_TYP), ACPI_BASE_ADDRESS + PM1_CNT);
+	} else {
+		/*
+		 * Check for any power failure to determine if this a wake from
+		 * S5 because the PCH does not set the WAK_STS bit when waking
+		 * from a true G3 state.
+		 */
+		if (ps->gen_pmcon_b & (PWR_FLR | SUS_PWR_FLR))
+			prev_sleep_state = SLEEP_STATE_S5;
 	}
 
 	/*
@@ -150,4 +159,24 @@ struct chipset_power_state *fill_power_state(void)
 	dump_power_state(ps);
 
 	return ps;
+}
+
+int vboot_platform_is_resuming(void)
+{
+	int typ = (inl(ACPI_BASE_ADDRESS + PM1_CNT) & SLP_TYP) >> SLP_TYP_SHIFT;
+	return typ == SLP_TYP_S3;
+}
+
+/*
+ * The PM1 control is set to S5 when vboot requests a reboot because the power
+ * state code above may not have collected it's data yet. Therefore, set it to
+ * S5 when vboot requests a reboot. That's necessary if vboot fails in the
+ * resume path and requests a reboot. This prevents a reboot loop where the
+ * error is continually hit on the failing vboot resume path.
+ */
+void vboot_platform_prepare_reboot(void)
+{
+	uint16_t port = ACPI_BASE_ADDRESS + PM1_CNT;
+
+	outl((inl(port) & ~(SLP_TYP)) | (SLP_TYP_S5 << SLP_TYP_SHIFT), port);
 }

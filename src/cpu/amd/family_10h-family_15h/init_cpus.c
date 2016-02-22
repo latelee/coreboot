@@ -299,6 +299,26 @@ void allow_all_aps_stop(u32 bsp_apicid)
 	lapic_write(LAPIC_MSG_REG, (bsp_apicid << 24) | F10_APSTATE_STOPPED);
 }
 
+static void wait_ap_stopped(u32 ap_apicid, void *gp)
+{
+	u32 timeout;
+	timeout = wait_cpu_state(ap_apicid, F10_APSTATE_ASLEEP, F10_APSTATE_ASLEEP);
+	printk(BIOS_DEBUG, "* AP %02x", ap_apicid);
+	if (timeout) {
+		printk(BIOS_DEBUG, " timed out:%08x\n", timeout);
+	} else {
+		printk(BIOS_DEBUG, "stopped\n");
+	}
+}
+
+void wait_all_other_cores_stopped(u32 bsp_apicid)
+{
+	// all aps other than core0
+	printk(BIOS_DEBUG, "stopped ap apicid: ");
+	for_each_ap(bsp_apicid, 2, -1, wait_ap_stopped, (void *)0);
+	printk(BIOS_DEBUG, "\n");
+}
+
 static void enable_apic_ext_id(u32 node)
 {
 	u32 val;
@@ -356,6 +376,7 @@ static u32 init_cpus(u32 cpu_init_detectedx, struct sys_info *sysinfo)
 	uint32_t dword;
 	uint8_t set_mtrrs;
 	uint8_t node_count;
+	uint8_t fam15_bsp_core1_apicid;
 	struct node_core_id id;
 
 	/* Please refer to the calculations and explaination in cache_as_ram.inc before modifying these values */
@@ -483,7 +504,12 @@ static u32 init_cpus(u32 cpu_init_detectedx, struct sys_info *sysinfo)
 		if (is_fam15h()) {
 			/* core 1 on node 0 is special; to avoid corrupting the
 			 * BSP do not alter MTRRs on that core */
-			if (apicid == 1)
+			if (IS_ENABLED(CONFIG_ENABLE_APIC_EXT_ID) && (CONFIG_APIC_ID_OFFSET > 0))
+				fam15_bsp_core1_apicid = CONFIG_APIC_ID_OFFSET + 1;
+			else
+				fam15_bsp_core1_apicid = 1;
+
+			if (apicid == fam15_bsp_core1_apicid)
 				set_mtrrs = 0;
 			else
 				set_mtrrs = !!(apicid & 0x1);
@@ -961,6 +987,7 @@ void cpuSetAMDMSR(uint8_t node_id)
 	u32 platform;
 	uint64_t revision;
 	uint8_t enable_c_states;
+	uint8_t enable_cpb;
 
 	printk(BIOS_DEBUG, "cpuSetAMDMSR ");
 
@@ -1051,6 +1078,19 @@ void cpuSetAMDMSR(uint8_t node_id)
 #else
 	enable_c_states = 0;
 #endif
+
+	if (revision & AMD_FAM15_ALL) {
+		enable_cpb = 1;
+		if (get_option(&nvram, "cpu_core_boost") == CB_SUCCESS)
+			enable_cpb = !!nvram;
+
+		if (!enable_cpb) {
+			/* Disable Core Performance Boost */
+			msr = rdmsr(0xc0010015);
+			msr.lo |= (0x1 << 25);		/* CpbDis = 1 */
+			wrmsr(0xc0010015, msr);
+		}
+	}
 
 	printk(BIOS_DEBUG, " done\n");
 }

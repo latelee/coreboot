@@ -13,12 +13,6 @@
 ## GNU General Public License for more details.
 ##
 
-config NORTHBRIDGE_INTEL_SANDYBRIDGE_MRC
-	bool
-	select MMCONF_SUPPORT
-	select MMCONF_SUPPORT_DEFAULT
-	select CPU_INTEL_MODEL_206AX
-	select INTEL_GMA_ACPI
 
 config NORTHBRIDGE_INTEL_SANDYBRIDGE
 	bool
@@ -26,13 +20,6 @@ config NORTHBRIDGE_INTEL_SANDYBRIDGE
 	select MMCONF_SUPPORT_DEFAULT
 	select CPU_INTEL_MODEL_206AX
 	select HAVE_DEBUG_RAM_SETUP
-	select INTEL_GMA_ACPI
-
-config NORTHBRIDGE_INTEL_IVYBRIDGE_MRC
-	bool
-	select MMCONF_SUPPORT
-	select MMCONF_SUPPORT_DEFAULT
-	select CPU_INTEL_MODEL_306AX
 	select INTEL_GMA_ACPI
 
 config NORTHBRIDGE_INTEL_IVYBRIDGE
@@ -43,7 +30,18 @@ config NORTHBRIDGE_INTEL_IVYBRIDGE
 	select HAVE_DEBUG_RAM_SETUP
 	select INTEL_GMA_ACPI
 
-if NORTHBRIDGE_INTEL_SANDYBRIDGE_MRC || NORTHBRIDGE_INTEL_IVYBRIDGE_MRC || NORTHBRIDGE_INTEL_IVYBRIDGE || NORTHBRIDGE_INTEL_SANDYBRIDGE
+if NORTHBRIDGE_INTEL_IVYBRIDGE || NORTHBRIDGE_INTEL_SANDYBRIDGE
+
+config USE_NATIVE_RAMINIT
+	bool "Use native raminit"
+	default y
+	help
+	  Select if you want to use coreboot implementation of raminit rather than
+	  System Agent/MRC.bin. You should answer Y.
+
+config CBFS_SIZE
+	hex
+	default 0x100000
 
 config VGA_BIOS_ID
 	string
@@ -54,12 +52,19 @@ config CACHE_MRC_SIZE_KB
 	default 512
 
 config IVYBRIDGE_LVDS
-	bool
-	default n
+	def_bool n
+	select MAINBOARD_HAS_NATIVE_VGA_INIT
+	select MAINBOARD_HAS_NATIVE_VGA_INIT_TEXTMODECFG
 
 config SANDYBRIDGE_LVDS
-	bool
-	default n
+	def_bool n
+	select MAINBOARD_HAS_NATIVE_VGA_INIT
+	select MAINBOARD_HAS_NATIVE_VGA_INIT_TEXTMODECFG
+
+# Select VGA & INTEL_EDID if MAINBOARD_DO_NATIVE_VGA_INIT is enabled.
+config MAINBOARD_DO_NATIVE_VGA_INIT
+	select VGA
+	select INTEL_EDID
 
 config MRC_CACHE_SIZE
 	hex
@@ -68,10 +73,8 @@ config MRC_CACHE_SIZE
 
 config DCACHE_RAM_BASE
 	hex
-	default 0xff7e0000 if NORTHBRIDGE_INTEL_IVYBRIDGE_MRC
-	default 0xff7e0000 if NORTHBRIDGE_INTEL_SANDYBRIDGE_MRC
-	default 0xfefe0000 if NORTHBRIDGE_INTEL_IVYBRIDGE
-	default 0xfefe0000 if NORTHBRIDGE_INTEL_SANDYBRIDGE
+	default 0xff7e0000 if !USE_NATIVE_RAMINIT
+	default 0xfefe0000 if USE_NATIVE_RAMINIT
 
 config DCACHE_RAM_SIZE
 	hex
@@ -85,18 +88,9 @@ config DCACHE_RAM_MRC_VAR_SIZE
 	hex
 	default 0x4000
 
-config HAVE_MRC
-	bool "Add a System Agent binary"
-	depends on !NORTHBRIDGE_INTEL_IVYBRIDGE && !NORTHBRIDGE_INTEL_SANDYBRIDGE
-	help
-	  Select this option to add a System Agent binary to
-	  the resulting coreboot image.
-
-	  Note: Without this binary coreboot will not work
-
 config MRC_FILE
 	string "Intel System Agent path and filename"
-	depends on HAVE_MRC
+	depends on !USE_NATIVE_RAMINIT
 	default "3rdparty/blobs/northbridge/intel/sandybridge/systemagent-r6.bin"
 	help
 	  The path and filename of the file to use as System Agent

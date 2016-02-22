@@ -774,7 +774,8 @@ DefinitionBlock (
 		}
 
 		/* Arbitrarily clear PciExpWakeStatus */
-		Store(PEWS, PEWS)
+		Store(PEWS, Local0)
+		Store(Local0, PEWS)
 
 		/* if(DeRefOf(Index(WKST,0))) {
 		*	Store(0, Index(WKST,1))
@@ -1044,8 +1045,8 @@ DefinitionBlock (
 						Return(0x0F) /* sata is visible */
 					}
 					Method(_CRS, 0)	{
-						CreateDwordField(CRS, ^HPT._BAS, HPBA)
-						Store(HPBA, HPBA)
+						CreateDwordField(CRS, ^HPT._BAS, HPBX)
+						Store(HPBA, HPBX)
 						Return(CRS)
 					}
 				} /* End Device(_SB.PCI0.LpcIsaBr.COPR) */

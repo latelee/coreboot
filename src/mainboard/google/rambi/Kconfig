@@ -38,4 +38,12 @@ config HAVE_ME_BIN
 	bool
 	default n
 
+config EC_GOOGLE_CHROMEEC_BOARDNAME
+	string
+	default "rambi"
+
+config GBB_HWID
+	string
+	depends on CHROMEOS
+	default "RAMBI TEST A-A 0128"
 endif # BOARD_GOOGLE_RAMBI

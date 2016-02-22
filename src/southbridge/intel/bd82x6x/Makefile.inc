@@ -41,15 +41,16 @@ smm-$(CONFIG_SPI_FLASH_SMM) += ../common/spi.c
 ramstage-$(CONFIG_HAVE_SMI_HANDLER) += smi.c
 smm-$(CONFIG_HAVE_SMI_HANDLER) += smihandler.c me.c me_8.x.c finalize.c pch.c
 
-romstage-y += early_smbus.c me_status.c gpio.c
+romstage-y += early_smbus.c me_status.c
 romstage-y += reset.c
 romstage-y += early_spi.c early_pch_common.c
 romstage-y += early_rcba.c
 
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE_MRC) += early_me_mrc.c early_usb_mrc.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE_MRC) += early_me_mrc.c early_usb_mrc.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_IVYBRIDGE) += early_thermal.c early_pch.c early_me.c early_usb.c
-romstage-$(CONFIG_NORTHBRIDGE_INTEL_SANDYBRIDGE) += early_thermal.c early_pch.c early_me.c early_usb.c
+ifeq ($(CONFIG_USE_NATIVE_RAMINIT),y)
+romstage-y += early_thermal.c early_pch.c early_me.c early_usb.c
+else
+romstage-y += early_me_mrc.c early_usb_mrc.c
+endif
 
 ramstage-y += madt.c
 

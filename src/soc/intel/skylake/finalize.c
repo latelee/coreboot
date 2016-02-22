@@ -24,6 +24,7 @@
 #include <spi-generic.h>
 #include <stdlib.h>
 #include <soc/lpc.h>
+#include <soc/me.h>
 #include <soc/pci_devs.h>
 #include <soc/pcr.h>
 #include <soc/pm.h>
@@ -37,6 +38,7 @@
 #define PCH_P2SB_EPMASK(mask_number) 	PCH_P2SB_EPMASK0 + (mask_number * 4)
 
 #define PCH_P2SB_E0			0xE0
+#define PCH_PWRM_ACPI_TMR_CTL		0xFC
 
 static void pch_configure_endpoints(device_t dev, int epmask_id, uint32_t mask)
 {
@@ -91,6 +93,7 @@ static void pch_finalize_script(void)
 	uint8_t *pmcbase;
 	config_t *config;
 	u32 pmsyncreg;
+	u8 reg8;
 
 	/* Set SPI opcode menu */
 	write16(spibar + SPIBAR_PREOP, SPI_OPPREFIX);
@@ -120,8 +123,26 @@ static void pch_finalize_script(void)
 	pmsyncreg |= PMSYNC_LOCK;
 	write32(pmcbase + PMSYNC_TPR_CFG, pmsyncreg);
 
+	/* Display me status before we hide it */
+	intel_me_status();
+
 	/* we should disable Heci1 based on the devicetree policy */
 	config = dev->chip_info;
+
+	/*
+	 * Disable ACPI PM timer based on dt policy
+	 *
+	 * Disabling ACPI PM timer is necessary for XTAL OSC shutdown.
+	 * Disabling ACPI PM timer also switches off TCO
+	 */
+
+	if (config->PmTimerDisabled) {
+		reg8 = read8(pmcbase + PCH_PWRM_ACPI_TMR_CTL);
+		reg8 |= (1 << 1);
+		write8(pmcbase + PCH_PWRM_ACPI_TMR_CTL, reg8);
+	}
+
+	/* we should disable Heci1 based on the devicetree policy */
 	if (config->HeciEnabled == 0)
 		pch_disable_heci();
 }
@@ -188,6 +209,9 @@ static void soc_finalize(void *unused)
 	pch_finalize_script();
 
 	soc_lockdown();
+
+	printk(BIOS_DEBUG, "Finalizing SMM.\n");
+	outb(APM_CNT_FINALIZE, APM_CNT);
 
 	/* Indicate finalize step with post code */
 	post_code(POST_OS_BOOT);

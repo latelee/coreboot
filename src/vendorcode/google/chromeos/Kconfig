@@ -44,19 +44,19 @@ config VBNV_OFFSET
 	  CMOS offset for VbNv data. This value must match cmos.layout
 	  in the mainboard directory, minus 14 bytes for the RTC.
 
-config VBNV_SIZE
-	hex
-	default 0x10
-	depends on PC80_SYSTEM
-	help
-	  CMOS storage size for VbNv data. This value must match cmos.layout
-	  in the mainboard directory.
-
 config CHROMEOS_VBNV_CMOS
 	bool "Vboot non-volatile storage in CMOS."
 	default n
 	help
 	  VBNV is stored in CMOS
+
+config CHROMEOS_VBNV_CMOS_BACKUP_TO_FLASH
+	bool "Back up Vboot non-volatile storage from CMOS to flash."
+	default n
+	depends on CHROMEOS_VBNV_CMOS
+	help
+	  Vboot non-volatile storage data will be backed up from CMOS to flash
+	  and restored from flash if the CMOS is invalid due to power loss.
 
 config CHROMEOS_VBNV_EC
 	bool "Vboot non-volatile storage in EC."
@@ -167,6 +167,104 @@ config HAVE_REGULATORY_DOMAIN
 	 This option is needed to add ACPI regulatory domain methods
 
 source src/vendorcode/google/chromeos/vboot2/Kconfig
+
+menu "GBB configuration"
+
+config GBB_HWID
+	string "Hardware ID"
+	default "NOCONF HWID"
+
+config GBB_BMPFV_FILE
+	string "Path to bmpfv image"
+	default ""
+
+config GBB_FLAG_DEV_SCREEN_SHORT_DELAY
+	bool "Reduce dev screen delay"
+	default n
+
+config GBB_FLAG_LOAD_OPTION_ROMS
+	bool "Load option ROMs"
+	default n
+
+config GBB_FLAG_ENABLE_ALTERNATE_OS
+	bool "Allow booting a non-Chrome OS kernel if dev switch is on"
+	default n
+
+config GBB_FLAG_FORCE_DEV_SWITCH_ON
+	bool "Force dev switch on"
+	default n
+
+config GBB_FLAG_FORCE_DEV_BOOT_USB
+	bool "Allow booting from USB in dev mode even if dev_boot_usb=0"
+	default y
+
+config GBB_FLAG_DISABLE_FW_ROLLBACK_CHECK
+	bool "Disable firmware rollback protection"
+	default y
+
+config GBB_FLAG_ENTER_TRIGGERS_TONORM
+	bool "Return to normal boot with Enter"
+	default n
+
+config GBB_FLAG_FORCE_DEV_BOOT_LEGACY
+	bool "Allow booting to legacy in dev mode even if dev_boot_legacy=0"
+	default n
+
+config GBB_FLAG_FAFT_KEY_OVERIDE
+	bool "Allow booting using alternative keys for FAFT servo testing"
+	default n
+
+config GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC
+	bool "Disable EC software sync"
+	default n
+
+config GBB_FLAG_DEFAULT_DEV_BOOT_LEGACY
+	bool "Default to booting to legacy in dev mode"
+	default n
+
+config GBB_FLAG_DISABLE_PD_SOFTWARE_SYNC
+	bool "Disable PD software sync"
+	default n
+
+config GBB_FLAG_DISABLE_LID_SHUTDOWN
+	bool "Disable shutdown on closed lid"
+	default n
+
+config GBB_FLAG_FORCE_DEV_BOOT_FASTBOOT_FULL_CAP
+	bool "Allow fastboot even if dev_boot_fastboot_full_cap=0"
+	default n
+endmenu # GBB
+
+menu "Vboot Keys"
+config VBOOT_ROOT_KEY
+	string "Root key (public)"
+	default "3rdparty/vboot/tests/devkeys/root_key.vbpubk"
+
+config VBOOT_RECOVERY_KEY
+	string "Recovery key (public)"
+	default "3rdparty/vboot/tests/devkeys/recovery_key.vbpubk"
+
+config VBOOT_FIRMWARE_PRIVKEY
+	string "Firmware key (private)"
+	default "3rdparty/vboot/tests/devkeys/firmware_data_key.vbprivk"
+
+config VBOOT_KERNEL_KEY
+	string "Kernel subkey (public)"
+	default "3rdparty/vboot/tests/devkeys/kernel_subkey.vbpubk"
+
+config VBOOT_KEYBLOCK
+	string "Keyblock to use for the RW regions"
+	default "3rdparty/vboot/tests/devkeys/firmware.keyblock"
+
+config VBOOT_KEYBLOCK_VERSION
+	int "Keyblock version number"
+	default 1
+
+config VBOOT_KEYBLOCK_PREAMBLE_FLAGS
+	hex "Keyblock preamble flags"
+	default 0
+
+endmenu # Keys
 
 endif # CHROMEOS
 endmenu

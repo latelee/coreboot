@@ -19,14 +19,6 @@ config CHROMEOS
 	select VIRTUAL_DEV_SWITCH
 	select PHYSICAL_REC_SWITCH
 
-config VBOOT_RAMSTAGE_INDEX
-	hex
-	default 0x2
-
-config VBOOT_REFCODE_INDEX
-	hex
-	default 0x3
-
 config MAINBOARD_DIR
 	string
 	default google/tidus
@@ -61,4 +53,8 @@ config MAINBOARD_FAMILY
 	depends on GENERATE_SMBIOS_TABLES
 	default "Google_Tidus"
 
+config GBB_HWID
+	string
+	depends on CHROMEOS
+	default "TIDUS TEST A-A 0595"
 endif

@@ -7,18 +7,16 @@ BUILD_PLATFORM ?= i386-elf
 # Example: BUILDGCC_OPTIONS=-c to remove temporary files before build
 
 all all_with_gdb:
-	$(MAKE) build-i386
-	$(MAKE) SKIP_IASL=1 \
-		 build-x64 build-armv7a build-mips build-riscv build-aarch64 \
-		 build_clang
+	$(MAKE) build-i386 build-x64 build-arm build-mips \
+		build-riscv build-aarch64 build-power8 build-nds32le \
+		build_clang build_iasl
 
 all_without_gdb:
-	$(MAKE) SKIP_GDB=1 build-i386
-	$(MAKE) SKIP_IASL=1 SKIP_GDB=1 \
-		 build-x64 build-armv7a build-mips build-riscv build-aarch64 \
-		 build_clang
+	$(MAKE) SKIP_GDB=1 build-i386 build-x64 build-arm build-mips \
+		build-riscv build-aarch64 build-power8 build-nds32le \
+		build_clang build_iasl
 
-build_tools: build_gcc build_iasl build_gdb
+build_tools: build_gcc build_gdb
 
 ###########################################################
 ### targets to do buildgcc builds
@@ -33,9 +31,7 @@ ifeq ($(SKIP_GDB),)
 endif
 
 build_iasl:
-ifeq ($(SKIP_IASL),)
 	bash ./buildgcc -P iasl $(if $(CPUS),-j $(CPUS))  $(if $(KEEP_SOURCES),-t) $(BUILDGCC_OPTIONS)
-endif
 
 build_clang:
 ifeq ($(SKIP_CLANG),)
@@ -49,8 +45,8 @@ build-i386:
 build-x64:
 	@$(MAKE) build_tools BUILD_PLATFORM=x86_64-elf
 
-build-armv7a:
-	@$(MAKE) build_tools BUILD_PLATFORM=armv7a-eabi
+build-arm:
+	@$(MAKE) build_tools BUILD_PLATFORM=arm-eabi
 
 build-aarch64:
 	@$(MAKE) build_tools BUILD_PLATFORM=aarch64-elf
@@ -63,6 +59,9 @@ build-riscv:
 
 build-power8:
 	@$(MAKE) build_tools BUILD_PLATFORM=powerpc64le-linux-gnu
+
+build-nds32le:
+	@$(MAKE) build_tools BUILD_PLATFORM=nds32le-elf
 
 clean_tempfiles:
 	rm -rf build-*
@@ -78,7 +77,7 @@ clean: clean_tempfiles
 distclean: clean
 	rm -rf tarballs
 
-.PHONY: build_gcc build_iasl build_gdb build_clang \
-	all all_with_gdb all_without_gdb build_tools \
-	build-i386 build-x64 build-armv7a build-aarch64 build-mips build-riscv build-power8 \
+.PHONY: build_gcc build_iasl build_gdb build_clang all all_with_gdb \
+	all_without_gdb build_tools build-i386 build-x64 build-arm  \
+	build-aarch64 build-mips build-riscv build-power8 build-nds32le \
 	clean distclean clean_tempfiles

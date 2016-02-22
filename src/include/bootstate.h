@@ -20,9 +20,10 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
-
-/* Control debugging of the boot state machine. */
-#define BOOT_STATE_DEBUG 0
+/* Only declare main() when in ramstage. */
+#if ENV_RAMSTAGE
+#include <main_decl.h>
+#endif
 
 /*
  * The boot state machine provides a mechanism for calls to be made through-
@@ -115,12 +116,12 @@ struct boot_state_callback {
 	void (*callback)(void *arg);
 	/* For use internal to the boot state machine. */
 	struct boot_state_callback *next;
-#if BOOT_STATE_DEBUG
+#if IS_ENABLED(CONFIG_DEBUG_BOOT_STATE)
 	const char *location;
 #endif
 };
 
-#if BOOT_STATE_DEBUG
+#if IS_ENABLED(CONFIG_DEBUG_BOOT_STATE)
 #define BOOT_STATE_CALLBACK_LOC __FILE__ ":" STRINGIFY(__LINE__)
 #define BOOT_STATE_CALLBACK_INIT_DEBUG .location = BOOT_STATE_CALLBACK_LOC,
 #define INIT_BOOT_STATE_CALLBACK_DEBUG(bscb_) \
@@ -167,11 +168,6 @@ int boot_state_unblock(boot_state_t state, boot_state_sequence_t seq);
 /* Block/Unblock current state phase from transitioning. */
 void boot_state_current_block(void);
 void boot_state_current_unblock(void);
-
-#if ENV_RAMSTAGE
-/* Entry into the boot state machine. */
-void main(void);
-#endif
 
 /* In order to schedule boot state callbacks at compile-time specify the
  * entries in an array using the BOOT_STATE_INIT_ENTRIES and

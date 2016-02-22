@@ -29,7 +29,7 @@
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <northbridge/intel/sandybridge/raminit_native.h>
 #include <southbridge/intel/bd82x6x/pch.h>
-#include <southbridge/intel/bd82x6x/gpio.h>
+#include <southbridge/intel/common/gpio.h>
 #include <arch/cpu.h>
 #include <cpu/x86/msr.h>
 
@@ -78,4 +78,11 @@ const struct southbridge_usb_port mainboard_usb_ports[] = {
 void mainboard_get_spd(spd_raw_data *spd) {
 	read_spd (&spd[0], 0x50);
 	read_spd (&spd[2], 0x51);
+}
+
+void mainboard_early_init(int s3resume) {
+}
+
+void mainboard_config_superio(void)
+{
 }

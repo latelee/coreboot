@@ -22,6 +22,7 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 config CHROMEOS
 	select CHROMEOS_RAMOOPS_DYNAMIC
 	select CHROMEOS_VBNV_CMOS
+	select CHROMEOS_VBNV_CMOS_BACKUP_TO_FLASH
 	select LID_SWITCH
 	select VBOOT_EC_SLOW_UPDATE
 	select VBOOT_OPROM_MATTERS
@@ -64,4 +65,16 @@ config INCLUDE_NHLT_BLOBS
 	select NHLT_NAU88L25
 	select NHLT_SSM4567
 
+config EC_GOOGLE_CHROMEEC_BOARDNAME
+	string
+	default "kunimitsu"
+
+config EC_GOOGLE_CHROMEEC_PD_BOARDNAME
+	string
+	default "kunimitsu_pd"
+
+config GBB_HWID
+	string
+	depends on CHROMEOS
+	default "KUNIMITSU TEST 8819"
 endif

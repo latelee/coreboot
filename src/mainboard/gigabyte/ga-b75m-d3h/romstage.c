@@ -29,7 +29,7 @@
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <northbridge/intel/sandybridge/raminit_native.h>
 #include <southbridge/intel/bd82x6x/pch.h>
-#include <southbridge/intel/bd82x6x/gpio.h>
+#include <southbridge/intel/common/gpio.h>
 #include <arch/cpu.h>
 #include <cpu/x86/msr.h>
 
@@ -205,3 +205,10 @@ static void dmi_config(void)
 	DMIBAR32(0x0e2c) = 0x20000000;
 }
 #endif
+
+void mainboard_early_init(int s3resume) {
+}
+
+void mainboard_config_superio(void)
+{
+}

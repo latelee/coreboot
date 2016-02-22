@@ -4,7 +4,7 @@
 # This file is part of the coreboot project.
 #
 # Copyright (C) 2015 Martin L Roth <gaumless@gmail.com>
-# Copyright (C) 2015 Google, Inc.
+# Copyright (C) 2015-2016 Google, Inc.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,19 +38,20 @@ my $top_dir        = ".";             # Directory where Kconfig is run
 my $root_dir       = "src";           # Directory of the top level Kconfig file
 my $errors_found   = 0;               # count of errors
 my $warnings_found = 0;
-my $exclude_dirs =
-    '--exclude-dir="build" --exclude-dir="coreboot-builds" '
-  . '--exclude-dir="payloads" --exclude-dir="configs" '
-  . '--exclude-dir="util"';    # directories to exclude when searching for used symbols - NOT USED FOR GIT GREP (TODO)
-my @exclude_files = ( '\.txt$', '\.tex$', 'config', '\.tags' );    #files to exclude when looking for symbols
-my $config_file = "";                                              # name of config file to load symbol values from.
-my @wholeconfig;           # document the entire kconfig structure
-my %loaded_files;          # list of each Kconfig file loaded
-my %symbols;               # main structure of all symbols declared
-my %referenced_symbols;    # list of symbols referenced by expressions or select statements
-my %used_symbols;          # structure of symbols used in the tree, and where they're found
-my @collected_symbols;     #
-my %selected_symbols;      # list of symbols that are enabled by a select statement
+my $exclude_dirs_and_files =
+  '^build/\|^coreboot-builds/\|^payloads/libpayload\|^payloads/coreinfo\|^configs/\|^util/\|^\.git/'
+  . '\|' .                            # directories to exclude when searching for used symbols
+  '\.txt$\|\.tex$\|\.tags';           #files to exclude when looking for symbols
+my $config_file = "";                 # name of config file to load symbol values from.
+my @wholeconfig;                      # document the entire kconfig structure
+my %loaded_files;                     # list of each Kconfig file loaded
+my %symbols;                          # main structure of all symbols declared
+my %referenced_symbols;               # list of symbols referenced by expressions or select statements
+my %used_symbols;                     # structure of symbols used in the tree, and where they're found
+my @collected_symbols;                #
+my %selected_symbols;                 # list of symbols that are enabled by a select statement
+
+my $exclude_unused = '_SPECIFIC_OPTIONS|SOUTH_BRIDGE_OPTIONS';
 
 Main();
 
@@ -185,7 +186,7 @@ sub check_for_ifdef {
             my $symbol = $3;
 
             if ( ( exists $symbols{$symbol} ) && ( $symbols{$symbol}{type} ne "string" ) ) {
-                show_error( "#ifdef 'CONFIG_$symbol' used at $file:$lineno."
+                show_warning( "#ifdef 'CONFIG_$symbol' used at $file:$lineno."
                       . "  Symbols of type '$symbols{$symbol}{type}' are always defined." );
             }
         }
@@ -204,8 +205,29 @@ sub check_for_ifdef {
               if ( $line =~ /^([^:]+):(\d+):.+defined\s*\(\s*CONFIG_$symbol.*(&&|\|\|)\s*!?\s*\(?\s*CONFIG_$symbol/ );
 
             if ( ( exists $symbols{$symbol} ) && ( $symbols{$symbol}{type} ne "string" ) ) {
-                show_error( "defined 'CONFIG_$symbol' used at $file:$lineno."
+                show_warning( "defined 'CONFIG_$symbol' used at $file:$lineno."
                       . "  Symbols of type '$symbols{$symbol}{type}' are always defined." );
+            }
+        }
+    }
+
+    my @collected_is_enabled;
+    if ($dont_use_git_grep) {
+        @collected_is_enabled =
+            `grep -Irn -- "[[:space:]]IS_ENABLED[[:space:]]*(.*)" | grep -v '$exclude_dirs_and_files' | grep -v "kconfig.h"`;
+    }
+    else {
+        @collected_is_enabled =
+            `git grep -In -- "[[:space:]]IS_ENABLED[[:space:]]*(.*)" | grep -v '$exclude_dirs_and_files' | grep -v "kconfig.h"`;
+    }
+
+    while ( my $line = shift @collected_is_enabled ) {
+        if ($line !~ /CONFIG_/ && $line =~ /^([^:]+):(\d+):.+IS_ENABLED\s*\(\s*(\w+)/ ) {
+            my $file   = $1;
+            my $lineno = $2;
+            my $symbol = $3;
+            if ( ( exists $symbols{$symbol} ) ) {
+                show_error("IS_ENABLED missing CONFIG_ prefix on symbol '$symbol' at $file:$lineno.");
             }
         }
     }
@@ -252,7 +274,7 @@ sub check_is_enabled {
             my $file   = $1;
             my $lineno = $2;
             $line = $3;
-            if ( $line !~ /(.*)IS_ENABLED\s*\(\s*CONFIG_(\w+)(.*)/ ) {
+            if ( ( $line !~ /(.*)IS_ENABLED\s*\(\s*CONFIG_(\w+)(.*)/ ) && ( $line !~ /(\/[\*\/])(.*)IS_ENABLED/ ) ) {
                 show_warning("# uninterpreted IS_ENABLED at $file:$lineno: $line");
                 next;
             }
@@ -345,10 +367,10 @@ sub collect_used_symbols {
     # find all references to CONFIG_ statements in the tree
 
     if ($dont_use_git_grep) {
-        @collected_symbols = `grep -Irn $exclude_dirs -- "CONFIG_"`;
+        @collected_symbols = `grep -Irn -- "CONFIG_" | grep -v '$exclude_dirs_and_files'`;
     }
     else {
-        @collected_symbols = `git grep -In -- "CONFIG_"`;
+        @collected_symbols = `git grep -In -- "CONFIG_" | grep -v '$exclude_dirs_and_files'`;
     }
 
     my @used_symbols = @collected_symbols;
@@ -361,13 +383,6 @@ sub collect_used_symbols {
             if ( $line =~ /^([^:]+):/ ) {
                 $filename = $1;
             }
-
-            my $skip = 0;
-            foreach my $exfile (@exclude_files) {
-                $skip = ( $filename =~ /$exfile/ );
-                last if $skip;
-            }
-            last if $skip;
 
             if ( exists $used_symbols{$symbol}{count} ) {
                 $used_symbols{$symbol}{count}++;
@@ -387,6 +402,10 @@ sub collect_used_symbols {
 sub check_used_symbols {
     # loop through all defined symbols and see if they're used anywhere
     foreach my $key ( sort ( keys %symbols ) ) {
+
+        if ( $key =~ /$exclude_unused/ ) {
+            next;
+        }
 
         #see if they're used internal to Kconfig
         next if ( exists $referenced_symbols{$key} );
@@ -420,7 +439,6 @@ sub build_and_parse_kconfig_tree {
 
     #start the tree off by loading the top level kconfig
     @config_to_parse = load_kconfig_file( $top_level_kconfig, "", 0, 0, "", 0 );
-
 
     while ( ( @parseline = shift(@config_to_parse) ) && ( exists $parseline[0]{text} ) ) {
         my $line     = $parseline[0]{text};
@@ -506,6 +524,8 @@ sub build_and_parse_kconfig_tree {
             $inside_config         = "";
             $inside_choice         = "$filename $line_no";
             $configs_inside_choice = 0;
+
+            # Kconfig verifies that choice blocks have a prompt
         }
 
         # endchoice
@@ -537,6 +557,10 @@ sub build_and_parse_kconfig_tree {
         # mainmenu <prompt>
         elsif ( $line =~ /^\s*mainmenu/ ) {
             $inside_config = "";
+
+            # Kconfig alread checks for multiple 'mainmenu' entries and mainmenu entries with no prompt
+            # Possible check: look for 'mainmenu ""'
+            # Possible check: verify that a mainmenu has been specified
         }
 
         # menu <prompt>
@@ -566,7 +590,6 @@ sub build_and_parse_kconfig_tree {
             my $expr = $1;
             push( @inside_if, $expr );
             handle_expressions( $expr, $inside_config, $filename, $line_no );
-
         }
 
         # endif
@@ -614,6 +637,21 @@ sub build_and_parse_kconfig_tree {
             show_error("$line  ($filename:$line_no unrecognized)");
         }
 
+        if ( defined $inside_menu[0] ) {
+            $parseline[0]{menus} = "";
+        }
+        else {
+            $parseline[0]{menus} = "top";
+        }
+
+        my $i = 0;
+        while ( defined $inside_menu[$i] ) {
+            $parseline[0]{menus} .= "$inside_menu[$i]";
+            $i++;
+            if ( defined $inside_menu[$i] ) {
+                $parseline[0]{menus} .= "->";
+            }
+        }
         push @wholeconfig, @parseline;
     }
 }
@@ -665,7 +703,6 @@ sub add_symbol {
                   . "at $symbols{$symbol}{0}{file}:$symbols{$symbol}{0}{line_no}." );
         }
     }
-
 
     # add the location of this instance
     my $symcount = $symbols{$symbol}{count};
@@ -936,6 +973,10 @@ sub handle_type {
     my $expression;
     ( $type, $expression ) = handle_if_line( $type, $inside_config, $filename, $line_no );
 
+    if ( $type =~ /tristate/ ) {
+        show_warning("$filename:$line_no - tristate types are not used.");
+    }
+
     if ($inside_config) {
         if ( exists( $symbols{$inside_config}{type} ) ) {
             if ( $symbols{$inside_config}{type} !~ /$type/ ) {
@@ -970,18 +1011,24 @@ sub handle_prompt {
                 $prompt = $1;
             }
 
+            #display an error if there's a prompt at the top menu level
             if ( !defined @$menu_array_ref[0] ) {
                 show_error( "Symbol  '$inside_config' with prompt '$prompt' appears outside of a menu"
                       . " at $filename:$line_no." );
             }
 
             my $sym_num = $symbols{$inside_config}{count};
-            unless ( exists $symbols{$inside_config}{$sym_num}{prompt_max} ) {
+            if ( !exists $symbols{$inside_config}{$sym_num}{prompt_max} ) {
                 $symbols{$inside_config}{$sym_num}{prompt_max} = 0;
+            }
+            else {
+                $symbols{$inside_config}{$sym_num}{prompt_max}++;
             }
             my $prompt_max = $symbols{$inside_config}{$sym_num}{prompt_max};
             $symbols{$inside_config}{$sym_num}{prompt}{$prompt_max}{prompt}         = $prompt;
             $symbols{$inside_config}{$sym_num}{prompt}{$prompt_max}{prompt_line_no} = $line_no;
+
+            $symbols{$inside_config}{$sym_num}{prompt}{$prompt_max}{prompt_menu} = @$menu_array_ref;
             if ($expression) {
                 $symbols{$inside_config}{$sym_num}{prompt}{$prompt_max}{prompt_depends_on} = $expression;
             }
@@ -1123,7 +1170,6 @@ sub load_kconfig_file {
     return @dir_file_data;
 }
 
-
 #-------------------------------------------------------------------------------
 # print_wholeconfig - prints out the parsed Kconfig file
 #-------------------------------------------------------------------------------
@@ -1137,7 +1183,7 @@ sub print_wholeconfig {
 
         #replace tabs with spaces for consistency
         $line->{text} =~ s/\t/        /g;
-        printf "%-120s # $line->{filename} line $line->{file_line_no}\n", $line->{text};
+        printf "%-120s # $line->{filename} line $line->{file_line_no} ($line->{menus})\n", $line->{text};
     }
 }
 
@@ -1146,7 +1192,11 @@ sub print_wholeconfig {
 #-------------------------------------------------------------------------------
 sub check_if_file_referenced {
     my $filename = $File::Find::name;
-    if ( ( $filename =~ /Kconfig/ ) && ( !exists $loaded_files{$filename} ) ) {
+    if (   ( $filename =~ /Kconfig/ )
+        && ( !$filename =~ /\.orig$/ )
+        && ( !$filename =~ /~$/ )
+        && ( !exists $loaded_files{$filename} ) )
+    {
         show_warning("'$filename' is never referenced");
     }
 }

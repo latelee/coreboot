@@ -48,11 +48,23 @@ config EC_GOOGLE_CHROMEEC_SPI_BUS
 	default 0
 
 config DRIVER_TPM_I2C_BUS
-        hex
+	hex
 	default 0x2
 
 config DRIVER_TPM_I2C_ADDR
 	hex
 	default 0x20
 
+config EC_GOOGLE_CHROMEEC_BOARDNAME
+	string
+	default "oak"
+
+config EC_GOOGLE_CHROMEEC_PD_BOARDNAME
+	string
+	default "oak_pd"
+
+config GBB_HWID
+	string
+	depends on CHROMEOS
+	default "OAK TEST 6858"
 endif # BOARD_GOOGLE_OAK

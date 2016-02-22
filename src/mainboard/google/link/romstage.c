@@ -29,20 +29,18 @@
 #include <console/console.h>
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <northbridge/intel/sandybridge/raminit.h>
-#include <southbridge/intel/bd82x6x/pch.h>
-#include <southbridge/intel/bd82x6x/gpio.h>
+#include <northbridge/intel/sandybridge/raminit_native.h>
+#include <southbridge/intel/common/gpio.h>
 #include "ec/google/chromeec/ec.h"
 #include <arch/cpu.h>
-#include <cpu/x86/bist.h>
 #include <cpu/x86/msr.h>
 #include <halt.h>
-#include "gpio.h"
 #include <tpm.h>
 #include <cbfs.h>
 
 #include <southbridge/intel/bd82x6x/chip.h>
 
-static void pch_enable_lpc(void)
+void pch_enable_lpc(void)
 {
 	const struct device *lpc;
 	const struct southbridge_intel_bd82x6x_config *config = NULL;
@@ -68,7 +66,7 @@ static void pch_enable_lpc(void)
 	pci_write_config32(PCH_LPC_DEV, LPC_GEN4_DEC, config->gen4_dec);
 }
 
-static void rcba_config(void)
+void rcba_config(void)
 {
 	u32 reg32;
 
@@ -117,10 +115,10 @@ static void rcba_config(void)
 	RCBA32(FD) = reg32;
 }
 
-static void copy_spd(struct pei_data *peid)
+static uint8_t *locate_spd(void)
 {
 	const int gpio_vector[] = {41, 42, 43, 10, -1};
-	char *spd_file;
+	uint8_t *spd_file;
 	size_t spd_file_len;
 	int spd_index = get_gpios(gpio_vector);
 
@@ -130,27 +128,20 @@ static void copy_spd(struct pei_data *peid)
 	if (!spd_file)
 		die("SPD data not found.");
 
-	if (spd_file_len < ((spd_index + 1) * sizeof(peid->spd_data[0]))) {
+	if (spd_file_len < ((spd_index + 1) * 256)) {
 		printk(BIOS_ERR, "spd index override to 0 - old hardware?\n");
 		spd_index = 0;
 	}
 
-	if (spd_file_len < sizeof(peid->spd_data[0]))
+	if (spd_file_len < 256)
 		die("Missing SPD data.");
 
-	memcpy(peid->spd_data[0],
-	       spd_file +
-	       spd_index * sizeof(peid->spd_data[0]),
-	       sizeof(peid->spd_data[0]));
+	return spd_file + spd_index * 256;
 }
 
-#include <cpu/intel/romstage.h>
-void main(unsigned long bist)
+void mainboard_fill_pei_data(struct pei_data *pei_data)
 {
-	int boot_mode = 0;
-	int cbmem_was_initted;
-
-	struct pei_data pei_data = {
+	struct pei_data pei_data_template = {
 		.pei_version = PEI_VERSION,
 		.mchbar = (uintptr_t)DEFAULT_MCHBAR,
 		.dmibar = (uintptr_t)DEFAULT_DMIBAR,
@@ -195,89 +186,48 @@ void main(unsigned long bist)
 			{ 0, 4, 0x0000 }, /* P13: Empty */
 		},
 	};
+	*pei_data = pei_data_template;
+	memcpy(pei_data->spd_data[0], locate_spd(),
+	       sizeof(pei_data->spd_data[0]));
+}
 
-	timestamp_init(get_initial_timestamp());
-	timestamp_add_now(TS_START_ROMSTAGE);
+const struct southbridge_usb_port mainboard_usb_ports[] = {
+	/* enabled power  usb oc pin  */
+	{ 0, 0, -1 }, /* P0: Empty */
+	{ 1, 0, 0 }, /* P1: Left USB 1  (OC0) */
+	{ 1, 0, 1 }, /* P2: Left USB 2  (OC1) */
+	{ 1, 0, -1 }, /* P3: SDCARD      (no OC) */
+	{ 0, 0, -1 }, /* P4: Empty */
+	{ 1, 0, -1 }, /* P5: WWAN        (no OC) */
+	{ 0, 0, -1 }, /* P6: Empty */
+	{ 0, 0, -1 }, /* P7: Empty */
+	{ 1, 0, -1 }, /* P8: Camera      (no OC) */
+	{ 1, 0, -1 }, /* P9: Bluetooth   (no OC) */
+	{ 0, 0, -1 }, /* P10: Empty */
+	{ 0, 0, -1 }, /* P11: Empty */
+	{ 0, 0, -1 }, /* P12: Empty */
+	{ 0, 0, -1 }, /* P13: Empty */
+};
 
-	if (bist == 0)
-		enable_lapic();
+void mainboard_get_spd(spd_raw_data *spd) {
+	memcpy(&spd[0], locate_spd(), 128);
+}
 
-	pch_enable_lpc();
-
-	/* Enable GPIOs */
-	pci_write_config32(PCH_LPC_DEV, GPIO_BASE, DEFAULT_GPIOBASE|1);
-	pci_write_config8(PCH_LPC_DEV, GPIO_CNTL, 0x10);
-	setup_pch_gpios(&link_gpio_map);
-
-	/* Initialize console device(s) */
-	console_init();
-
-	/* Halt if there was a built in self test failure */
-	report_bist_failure(bist);
-
-	if (MCHBAR16(SSKPD) == 0xCAFE) {
-		printk(BIOS_DEBUG, "soft reset detected\n");
-		boot_mode = 1;
-
-		/* System is not happy after keyboard reset... */
-		printk(BIOS_DEBUG, "Issuing CF9 warm reset\n");
-		outb(0x6, 0xcf9);
-		halt();
-	}
-
-	/* Perform some early chipset initialization required
-	 * before RAM initialization can work
-	 */
-	sandybridge_early_initialization(SANDYBRIDGE_MOBILE);
-	printk(BIOS_DEBUG, "Back from sandybridge_early_initialization()\n");
-
-	boot_mode = southbridge_detect_s3_resume() ? 2 : 0;
-	if (boot_mode == 0) {
+void mainboard_early_init(int s3resume)
+{
+	if (!s3resume) {
 		/* This is the fastest way to let users know
 		 * the Intel CPU is now alive.
 		 */
 		google_chromeec_kbbacklight(100);
 	}
+}
 
-	post_code(0x38);
-	/* Enable SPD ROMs and DDR-III DRAM */
-	enable_smbus();
+int mainboard_should_reset_usb(int s3resume)
+{
+	return !s3resume;
+}
 
-	/* Prepare USB controller early in S3 resume */
-	if (boot_mode == 2)
-		enable_usb_bar();
-
-	post_code(0x39);
-
-	copy_spd(&pei_data);
-
-	post_code(0x3a);
-	pei_data.boot_mode = boot_mode;
-	timestamp_add_now(TS_BEFORE_INITRAM);
-	sdram_initialize(&pei_data);
-
-	timestamp_add_now(TS_AFTER_INITRAM);
-	post_code(0x3c);
-
-	rcba_config();
-	post_code(0x3d);
-
-	quick_ram_check();
-	post_code(0x3e);
-
-	cbmem_was_initted = !cbmem_recovery(boot_mode==2);
-	if (boot_mode!=2)
-		save_mrc_data(&pei_data);
-
-	if (boot_mode==2 && !cbmem_was_initted) {
-		/* Failed S3 resume, reset to come up cleanly */
-		outb(0x6, 0xcf9);
-		halt();
-	}
-	northbridge_romstage_finalize(boot_mode==2);
-
-	post_code(0x3f);
-	if (CONFIG_LPC_TPM) {
-		init_tpm(boot_mode == 2);
-	}
+void mainboard_config_superio(void)
+{
 }

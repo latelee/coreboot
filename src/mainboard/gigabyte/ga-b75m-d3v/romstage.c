@@ -29,7 +29,7 @@
 #include <northbridge/intel/sandybridge/sandybridge.h>
 #include <northbridge/intel/sandybridge/raminit_native.h>
 #include <southbridge/intel/bd82x6x/pch.h>
-#include <southbridge/intel/bd82x6x/gpio.h>
+#include <southbridge/intel/common/gpio.h>
 #include <arch/cpu.h>
 #include <cpu/x86/msr.h>
 
@@ -114,4 +114,11 @@ void mainboard_get_spd(spd_raw_data *spd) {
         read_spd (&spd[1], 0x51);
         read_spd (&spd[2], 0x52);
         read_spd (&spd[3], 0x53);
+}
+
+void mainboard_early_init(int s3resume) {
+}
+
+void mainboard_config_superio(void)
+{
 }

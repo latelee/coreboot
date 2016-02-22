@@ -82,7 +82,7 @@ endif
 # Disable implicit/built-in rules to make Makefile errors fail fast.
 .SUFFIXES:
 
-HOSTCC := $(if $(shell type gcc 2>/dev/null), gcc, cc)
+HOSTCC := $(if $(shell type gcc 2>/dev/null),gcc,cc)
 HOSTCXX = g++
 HOSTCFLAGS := -g
 HOSTCXXFLAGS := -g
@@ -153,6 +153,7 @@ endif
 include toolchain.inc
 
 strip_quotes = $(strip $(subst ",,$(subst \",,$(1))))
+# fix makefile syntax highlighting after strip macro \" "))
 
 # The primary target needs to be here before we include the
 # other files

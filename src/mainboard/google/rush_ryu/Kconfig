@@ -88,4 +88,12 @@ config EC_GOOGLE_CHROMEEC_I2C_BUS
 	hex
 	default 1
 
+config EC_GOOGLE_CHROMEEC_BOARDNAME
+	string
+	default "ryu"
+
+config GBB_HWID
+	string
+	depends on CHROMEOS
+	default "RYU TEST 9382"
 endif # BOARD_GOOGLE_RUSH_RYU

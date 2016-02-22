@@ -23,6 +23,7 @@ config BOARD_SPECIFIC_OPTIONS # dummy
 config CHROMEOS
 	select CHROMEOS_RAMOOPS_DYNAMIC
 	select CHROMEOS_VBNV_CMOS
+	select CHROMEOS_VBNV_CMOS_BACKUP_TO_FLASH
 	select LID_SWITCH
 	select VBOOT_EC_SLOW_UPDATE
 	select VBOOT_OPROM_MATTERS
@@ -63,4 +64,16 @@ config INCLUDE_NHLT_BLOBS
 	select NHLT_MAX98357
 	select NHLT_NAU88L25
 
+config EC_GOOGLE_CHROMEEC_BOARDNAME
+	string
+	default "lars"
+
+config EC_GOOGLE_CHROMEEC_PD_BOARDNAME
+	string
+	default "lars_pd"
+
+config GBB_HWID
+	string
+	depends on CHROMEOS
+	default "LARS TEST 5001"
 endif

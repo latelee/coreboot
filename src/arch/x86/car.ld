@@ -23,6 +23,14 @@
 #if IS_ENABLED(CONFIG_SEPARATE_VERSTAGE)
 	VBOOT2_WORK(., 16K)
 #endif
+	/* Stack for CAR stages. Since it persists across all stages that
+	 * use CAR it can be reused. The chipset/SoC is expected to provide
+	 * the stack size. */
+#if IS_ENABLED(CONFIG_C_ENVIRONMENT_BOOTBLOCK)
+	_car_stack_start = .;
+	. += CONFIG_DCACHE_BSP_STACK_SIZE;
+	_car_stack_end = .;
+#endif
 	/* The pre-ram cbmem console as well as the timestamp region are fixed
 	 * in size. Therefore place them at the beginning .car.data section
 	 * so that multiple stages (romstage and verstage) have a consistent
@@ -34,9 +42,7 @@
 	 * backing store once cbmem comes online. Therefore, this data needs
 	 * to reside in the migrated area (between _car_data_start and
 	 * _car_data_end). */
-#if IS_ENABLED(CONFIG_HAS_PRECBMEM_TIMESTAMP_REGION)
 	TIMESTAMP(., 0x100)
-#endif
 	/* _car_global_start and _car_global_end provide symbols to per-stage
 	 * variables that are not shared like the timestamp and the pre-ram
 	 * cbmem console. This is useful for clearing this area on a per-stage

@@ -46,12 +46,23 @@ export objgenerated := $(obj)/generated
 
 #######################################################################
 # root rule to resolve if in build mode (ie. configuration exists)
-real-target: $(obj)/config.h coreboot
+real-target: $(obj)/config.h coreboot files_added
 coreboot: build-dirs $(obj)/coreboot.rom $(obj)/cbfstool $(obj)/rmodtool
+
+# This target can be used in site local to run scripts or additional
+# targets after the build completes by creating a Makefile.inc in the
+# site-local directory with a target named 'build_complete::'
+build_complete:: coreboot
+	printf "\nBuilt %s (%s)\n" $(CONFIG_MAINBOARD_DIR) \
+		$(CONFIG_MAINBOARD_PART_NUMBER)
+
+# This target can be used to run rules after all files were added to CBFS,
+# for example to process FMAP regions or the entire image.
+files_added:: build_complete
 
 #######################################################################
 # our phony targets
-PHONY+= clean-abuild coreboot lint lint-stable build-dirs
+PHONY+= clean-abuild coreboot lint lint-stable build-dirs build_complete
 
 #######################################################################
 # root source directories of coreboot
@@ -60,6 +71,7 @@ subdirs-y += src/ec/acpi $(wildcard src/ec/*/*) $(wildcard src/southbridge/*/*)
 subdirs-y += $(wildcard src/soc/*/*) $(wildcard src/northbridge/*/*)
 subdirs-y += src/superio $(wildcard src/drivers/*) src/cpu src/vendorcode
 subdirs-y += util/cbfstool util/sconfig util/nvramtool util/broadcom
+subdirs-y += util/futility util/marvell
 subdirs-y += $(wildcard src/arch/*)
 subdirs-y += src/mainboard/$(MAINBOARDDIR)
 subdirs-y += payloads/external
@@ -396,6 +408,8 @@ $(AMDFWTOOL): $(top)/util/amdfwtool/amdfwtool.c
 
 CBOOTIMAGE:=$(objutil)/cbootimage/cbootimage
 
+FUTILITY:=$(objutil)/futility/futility
+
 subdirs-y += util/nvidia
 
 BIMGTOOL:=$(objutil)/bimgtool/bimgtool
@@ -434,6 +448,7 @@ clean-for-update-target:
 	rm -f $(obj)/mainboard/$(MAINBOARDDIR)/bootblock.* $(obj)/dsdt.*
 	rm -f $(obj)/cpu/x86/smm/smm_bin.c $(obj)/cpu/x86/smm/smm.* $(obj)/cpu/x86/smm/smm
 	$(MAKE) -C payloads/external/SeaBIOS -f Makefile.inc clean
+	$(MAKE) -C payloads/external/U-Boot -f Makefile.inc clean
 
 clean-target:
 	rm -f $(obj)/coreboot*
@@ -461,7 +476,7 @@ gitconfig:
 		fi;						     \
 	done
 	# Now set up thehooks for 3rdparty/blobs
-	if [ -d .git/modules/3rdparty -a \
+	if [ -d .git/modules/3rdparty/hooks -a \
 	\( util/gitconfig/commit-msg -nt .git/modules/3rdparty/hooks/commit-msg -o \
 	! -x .git/modules/3rdparty/hooks/commit-msg \) ]; then \
 		sed -e "s,%MAKE%,$(MAKE),g" util/gitconfig/commit-msg > .git/modules/3rdparty/hooks/commit-msg; \
@@ -471,94 +486,10 @@ gitconfig:
 	git config remote.origin.push HEAD:refs/for/master
 	(git config --global user.name >/dev/null && git config --global user.email >/dev/null) || (printf 'Please configure your name and email in git:\n\n git config --global user.name "Your Name Comes Here"\n git config --global user.email your.email@example.com\n'; exit 1)
 
-help_toolchain help::
-	@echo  '*** Toolchain targets ***'
-	@echo  '  crossgcc        - Build coreboot cross-compilers for all platforms'
-	@echo  '  crosstools      - Build coreboot cross-compiler and GDB for all platforms'
-	@echo  '  crossgcc-clean  - Remove all built coreboot cross-compilers'
-	@echo  '  iasl            - Build coreboot IASL compiler (built by all cross targets)'
-	@echo  '  clang           - Build coreboot clang compiler'
-	@echo  '  test-toolchain  - Reports if toolchain components are out of date'
-	@echo  '  crossgcc-ARCH   - Build cross-compiler for specific architecture'
-	@echo  '  crosstools-ARCH - Build cross-compiler with GDB for specific architecture'
-	@echo  '  ARCH can be "i386", "x64", "arm", "aarch64", "mips", "riscv", or "power8"'
-	@echo  '  Use "make [target] CPUS=#" to build toolchain using multiple cores'
-	@echo
+include util/crossgcc/Makefile.inc
 
-# For the toolchain builds, use CPUS=x to use multiple processors to build
-# use BUILDGCC_OPTIONS= to set any crossgcc command line options
-# Example: BUILDGCC_OPTIONS='-t' will keep temporary files after build
-crossgcc: clean-for-update
-	$(MAKE) -C util/crossgcc all_without_gdb SKIP_CLANG=1
-
-.PHONY: crossgcc crossgcc-i386 crossgcc-x64 crossgcc-arm crossgcc-aarch64 \
-	crossgcc-mips crossgcc-riscv crossgcc-power8 crossgcc-clean iasl \
-	clang tools crosstools-i386 crosstools-x64 crosstools-arm \
-	crosstools-aarch64 crosstools-mips crosstools-riscv crosstools-power8
-
-crossgcc-i386: clean-for-update
-	$(MAKE) -C util/crossgcc build-i386 SKIP_GDB=1
-
-crossgcc-x64: clean-for-update
-	$(MAKE) -C util/crossgcc build-x64 SKIP_GDB=1
-
-crossgcc-arm: clean-for-update
-	$(MAKE) -C util/crossgcc build-armv7a SKIP_GDB=1
-
-crossgcc-aarch64: clean-for-update
-	$(MAKE) -C util/crossgcc build-aarch64 SKIP_GDB=1
-
-crossgcc-mips: clean-for-update
-	$(MAKE) -C util/crossgcc build-mips SKIP_GDB=1
-
-crossgcc-riscv: clean-for-update
-	$(MAKE) -C util/crossgcc build-riscv SKIP_GDB=1
-
-crossgcc-power8: clean-for-update
-	$(MAKE) -C util/crossgcc build-power8 SKIP_GDB=1
-
-crosstools: clean-for-update
-	$(MAKE) -C util/crossgcc all_with_gdb SKIP_CLANG=1
-
-iasl: clean-for-update
-	$(MAKE) -C util/crossgcc build_iasl
-
-clang: clean-for-update
-	$(MAKE) -C util/crossgcc build_clang
-
-crosstools-i386: clean-for-update
-	$(MAKE) -C util/crossgcc build-i386
-
-crosstools-x64: clean-for-update
-	$(MAKE) -C util/crossgcc build-x64
-
-crosstools-arm: clean-for-update
-	$(MAKE) -C util/crossgcc build-armv7a
-
-crosstools-aarch64: clean-for-update
-	$(MAKE) -C util/crossgcc build-aarch64
-
-crosstools-mips: clean-for-update
-	$(MAKE) -C util/crossgcc build-mips
-
-crosstools-riscv: clean-for-update
-	$(MAKE) -C util/crossgcc build-riscv
-
-crosstools-power8: clean-for-update
-	$(MAKE) -C util/crossgcc build-power8
-
-crossgcc-clean: clean-for-update
-	$(MAKE) -C util/crossgcc clean
-
-tools: $(objutil)/kconfig/conf $(CBFSTOOL) $(FMAPTOOL) $(RMODTOOL) $(objutil)/nvramtool/nvramtool $(ROMCC_BIN) $(objutil)/sconfig/sconfig $(IFDTOOL) $(IFDFAKE) $(CBOOTIMAGE) $(AMDFWTOOL)
-
-test-toolchain:
-ifeq ($(COMPILER_OUT_OF_DATE),1)
-	echo "The coreboot toolchain is not the current version."
-	$(error )
-else
-	echo "The coreboot toolchain is the current version."
-endif # ifeq ($(COMPILER_OUT_OF_DATE),1)
+.PHONY: tools
+tools: $(objutil)/kconfig/conf $(CBFSTOOL) $(FMAPTOOL) $(RMODTOOL) $(objutil)/nvramtool/nvramtool $(ROMCC_BIN) $(objutil)/sconfig/sconfig $(IFDTOOL) $(IFDFAKE) $(CBOOTIMAGE) $(AMDFWTOOL) $(FUTILITY)
 
 ###########################################################################
 # Common recipes for all stages
@@ -660,10 +591,13 @@ endif
 # $(call cbfs-add-cmd-for-region,file in extract_nth format,region name)
 define cbfs-add-cmd-for-region
 	$(CBFSTOOL) $@.tmp \
-	add$(if $(filter stage,$(call extract_nth,3,$(1))),-stage)$(if $(filter payload,$(call extract_nth,3,$(1))),-payload) \
+	add$(if $(filter stage,$(call extract_nth,3,$(1))),-stage)$(if \
+		$(filter payload,$(call extract_nth,3,$(1))),-payload)$(if \
+		$(filter flat-binary,$(call extract_nth,3,$(1))),-flat-binary) \
 	-f $(call extract_nth,1,$(1)) \
 	-n $(call extract_nth,2,$(1)) \
-	$(if $(filter-out stage,$(call extract_nth,3,$(1))),-t $(call extract_nth,3,$(1))) \
+	$(if $(filter-out flat-binary,$(filter-out stage,$(call \
+		extract_nth,3,$(1)))),-t $(call extract_nth,3,$(1))) \
 	$(if $(call extract_nth,4,$(1)),-c $(call extract_nth,4,$(1))) \
 	$(cbfs-autogen-attributes) \
 	-r $(2) \
@@ -800,6 +734,9 @@ ifneq ($(strip $(call strip_quotes,$(CONFIG_LINUX_INITRD))),)
       ADDITIONAL_PAYLOAD_CONFIG+=-I $(CONFIG_LINUX_INITRD)
 endif
 endif
+ifneq ($(strip $(call strip_quotes,$(CONFIG_PAYLOAD_OPTIONS))),)
+      ADDITIONAL_PAYLOAD_CONFIG+=$(strip $(call strip_quotes,$(CONFIG_PAYLOAD_OPTIONS)))
+endif
 
 ifeq ($(CONFIG_HAVE_REFCODE_BLOB),y)
 REFCODE_BLOB=$(obj)/refcode.rmod
@@ -860,7 +797,11 @@ $(CONFIG_CBFS_PREFIX)/ramstage-compression := $(CBFS_COMPRESS_FLAG)
 
 cbfs-files-y += $(CONFIG_CBFS_PREFIX)/payload
 $(CONFIG_CBFS_PREFIX)/payload-file := $(CONFIG_PAYLOAD_FILE)
+ifeq ($(CONFIG_PAYLOAD_IS_FLAT_BINARY),y)
+$(CONFIG_CBFS_PREFIX)/payload-type := flat-binary
+else
 $(CONFIG_CBFS_PREFIX)/payload-type := payload
+endif
 $(CONFIG_CBFS_PREFIX)/payload-compression := $(CBFS_PAYLOAD_COMPRESS_FLAG)
 $(CONFIG_CBFS_PREFIX)/payload-options := $(ADDITIONAL_PAYLOAD_CONFIG)
 
@@ -922,6 +863,7 @@ junit.xml:
 TOOLLIST= \
 	cbmem \
 	ectool \
+	futility \
 	inteltool \
 	intelvbttool \
 	nvramtool \

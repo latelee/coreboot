@@ -105,16 +105,14 @@ ifeq ($(CONFIG_ARCH_BOOTBLOCK_X86_32)$(CONFIG_ARCH_BOOTBLOCK_X86_64),y)
 bootblock-y += boot.c
 bootblock-y += memcpy.c
 bootblock-y += memset.c
-bootblock-y += mmap_boot.c
+bootblock-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
 
-# Add the assembly file that pulls in the rest of the dependencies in
-# the right order. Make sure the auto generated bootblock.inc is a proper
-# dependency. Make the same true for the linker sript.
 bootblock-y += id.S
 $(call src-to-obj,bootblock,$(dir)/id.S): $(obj)/build.h
 
 ifeq ($(CONFIG_C_ENVIRONMENT_BOOTBLOCK),y)
 
+bootblock-y += bootblock_crt0.S
 bootblock-y += memlayout.ld
 
 ifeq ($(CONFIG_ARCH_BOOTBLOCK_X86_32),y)
@@ -132,9 +130,12 @@ else
 LDFLAGS_bootblock += -m elf_x86_64 --oformat elf64-x86-64
 endif
 
-bootblock-y += bootblock.S
+# Add the assembly file that pulls in the rest of the dependencies in
+# the right order. Make sure the auto generated bootblock.inc is a proper
+# dependency. Make the same true for the linker sript.
+bootblock-y += bootblock_romcc.S
 bootblock-y += walkcbfs.S
-$(call src-to-obj,bootblock,$(dir)/bootblock.S): $(objgenerated)/bootblock.inc
+$(call src-to-obj,bootblock,$(dir)/bootblock_romcc.S): $(objgenerated)/bootblock.inc
 
 bootblock-y += bootblock.ld
 $(call src-to-obj,bootblock,$(dir)/bootblock.ld): $(objgenerated)/bootblock.ld
@@ -353,7 +354,7 @@ romstage-$(CONFIG_ARCH_RAMSTAGE_X86_32) += cpu_common.c
 romstage-y += memset.c
 romstage-y += memcpy.c
 romstage-y += memmove.c
-romstage-y += mmap_boot.c
+romstage-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
 
 romstage-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
 
@@ -383,7 +384,7 @@ ramstage-y += memset.c
 ramstage-y += memcpy.c
 ramstage-y += memmove.c
 ramstage-y += ebda.c
-ramstage-y += mmap_boot.c
+ramstage-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
 ramstage-$(CONFIG_COOP_MULTITASKING) += thread.c
 ramstage-$(CONFIG_COOP_MULTITASKING) += thread_switch.S
 ramstage-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
@@ -391,7 +392,7 @@ ramstage-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
 smm-y += memset.c
 smm-y += memcpy.c
 smm-y += memmove.c
-smm-y += mmap_boot.c
+smm-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
 
 ifeq ($(CONFIG_ARCH_RAMSTAGE_X86_32),y)
 rmodules_x86_32-y += memset.c

@@ -18,10 +18,20 @@ verstage-y += chromeos.c
 romstage-y += chromeos.c
 ramstage-y += chromeos.c
 
+bootblock-y += vbnv.c
+verstage-y += vbnv.c
+romstage-y += vbnv.c
+ramstage-y += vbnv.c
+
 bootblock-$(CONFIG_CHROMEOS_VBNV_CMOS) += vbnv_cmos.c
 verstage-$(CONFIG_CHROMEOS_VBNV_CMOS) += vbnv_cmos.c
 romstage-$(CONFIG_CHROMEOS_VBNV_CMOS) += vbnv_cmos.c
 ramstage-$(CONFIG_CHROMEOS_VBNV_CMOS) += vbnv_cmos.c
+
+bootblock-$(CONFIG_CHROMEOS_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
+verstage-$(CONFIG_CHROMEOS_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
+romstage-$(CONFIG_CHROMEOS_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
+ramstage-$(CONFIG_CHROMEOS_VBNV_CMOS_BACKUP_TO_FLASH) += vbnv_flash.c
 
 bootblock-$(CONFIG_CHROMEOS_VBNV_EC) += vbnv_ec.c
 verstage-$(CONFIG_CHROMEOS_VBNV_EC) += vbnv_ec.c
@@ -51,3 +61,92 @@ CFLAGS_common += -DMOCK_TPM=0
 endif
 
 subdirs-$(CONFIG_VBOOT_VERIFY_FIRMWARE) += vboot2
+
+CONFIG_GBB_HWID := $(call strip_quotes,$(CONFIG_GBB_HWID))
+CONFIG_GBB_BMPFV_FILE := $(call strip_quotes,$(CONFIG_GBB_BMPFV_FILE))
+CONFIG_VBOOT_KEYBLOCK := $(call strip_quotes,$(CONFIG_VBOOT_KEYBLOCK))
+CONFIG_VBOOT_FIRMWARE_PRIVKEY := $(call strip_quotes,$(CONFIG_VBOOT_FIRMWARE_PRIVKEY))
+CONFIG_VBOOT_KERNEL_KEY := $(call strip_quotes,$(CONFIG_VBOOT_KERNEL_KEY))
+
+# bool-to-mask(var, value)
+# return "value" if var is "y", 0 otherwise
+bool-to-mask = $(if $(filter y,$(1)),$(2),0)
+
+GBB_FLAGS := $(call int-add, \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DEV_SCREEN_SHORT_DELAY),0x1) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_LOAD_OPTION_ROMS),0x2) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_ENABLE_ALTERNATE_OS),0x4) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FORCE_DEV_SWITCH_ON),0x8) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FORCE_DEV_BOOT_USB),0x10) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DISABLE_FW_ROLLBACK_CHECK),0x20) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_ENTER_TRIGGERS_TONORM),0x40) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FORCE_DEV_BOOT_LEGACY),0x80) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FAFT_KEY_OVERIDE),0x100) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DISABLE_EC_SOFTWARE_SYNC),0x200) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DEFAULT_DEV_BOOT_LEGACY),0x400) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DISABLE_PD_SOFTWARE_SYNC),0x800) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_DISABLE_LID_SHUTDOWN),0x1000) \
+	$(call bool-to-mask,$(CONFIG_GBB_FLAG_FORCE_DEV_BOOT_FASTBOOT_FULL_CAP),0x2000))
+
+ifneq ($(CONFIG_GBB_BMPFV_FILE),)
+$(obj)/gbb.stub: $(obj)/coreboot.rom $(FUTILITY)
+	@printf "    CREATE GBB (with BMPFV)\n"
+	$(CBFSTOOL) $< read -r GBB -f $(obj)/gbb.stub.tmp
+	$(FUTILITY) gbb_utility -c 0x100,0x1000,$(call int-subtract $(call file-size,$(obj)/gbb.stub.tmp) 0x2180),0x1000 $@.tmp
+	rm -f $(obj)/gbb.stub.tmp
+	mv $@.tmp $@
+else
+$(obj)/gbb.stub: $(obj)/coreboot.rom $(FUTILITY)
+	@printf "    CREATE GBB (without BMPFV)\n"
+	$(FUTILITY) gbb_utility -c 0x100,0x1000,0,0x1000 $@.tmp
+	mv $@.tmp $@
+endif
+
+$(obj)/gbb.region: $(obj)/gbb.stub
+	@printf "    SETUP GBB\n"
+	cp $< $@.tmp
+	$(FUTILITY) gbb_utility -s \
+		--hwid="$(CONFIG_GBB_HWID)" \
+		--rootkey="$(CONFIG_VBOOT_ROOT_KEY)" \
+		--recoverykey="$(CONFIG_VBOOT_RECOVERY_KEY)" \
+		--flags=$(GBB_FLAGS) \
+		$@.tmp
+	mv $@.tmp $@
+
+build_complete:: $(obj)/gbb.region
+	@printf "    WRITE GBB\n"
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r GBB -f $<
+
+# Extract FW_MAIN_? region and minimize it if the last file is empty, so it
+# doesn't contain this empty file (that can have a significant size),
+# improving a lot on hash times due to a smaller amount of data loaded from
+# firmware storage.
+# When passing the minimized image to vbutil_firmware, its length is recorded
+# in the keyblock, and coreboot's vboot code clips the region_device to match,
+# which prevents any potential extension attacks.
+$(obj)/FW_MAIN_%.bin: $(obj)/coreboot.rom
+	$(CBFSTOOL) $< read -r $(basename $(notdir $@)) -f $@.tmp
+	$(CBFSTOOL) $(obj)/coreboot.rom print -k -r $(basename $(notdir $@)) | \
+		tail -1 | \
+		sed "s,^(empty)[[:space:]]\(0x[0-9a-f]*\)\tnull\t.*$$,\1," \
+		> $@.tmp.size
+	if [ -n "$$(cat $@.tmp.size)" ]; then \
+		head -c $$( printf "%d" $$(cat $@.tmp.size)) $@.tmp > $@.tmp2 && \
+		mv $@.tmp2 $@; \
+	else \
+		mv $@.tmp $@; \
+	fi
+
+$(obj)/VBLOCK_%.bin: $(obj)/FW_MAIN_%.bin $(FUTILITY)
+	$(FUTILITY) vbutil_firmware \
+		--vblock $@ \
+		--keyblock "$(CONFIG_VBOOT_KEYBLOCK)" \
+		--signprivate "$(CONFIG_VBOOT_FIRMWARE_PRIVKEY)" \
+		--version $(CONFIG_VBOOT_KEYBLOCK_VERSION) \
+		--fv $< \
+		--kernelkey "$(CONFIG_VBOOT_KERNEL_KEY)" \
+		--flags $(CONFIG_VBOOT_KEYBLOCK_PREAMBLE_FLAGS)
+
+files_added:: $(obj)/VBLOCK_A.bin $(obj)/VBLOCK_B.bin
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r VBLOCK_A -f $(obj)/VBLOCK_A.bin
+	$(CBFSTOOL) $(obj)/coreboot.rom write -u -r VBLOCK_B -f $(obj)/VBLOCK_B.bin

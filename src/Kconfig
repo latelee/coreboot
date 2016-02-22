@@ -198,14 +198,6 @@ config COLLECT_TIMESTAMPS
 	  Make coreboot create a table of timer-ID/timer-value pairs to
 	  allow measuring time spent at different phases of the boot process.
 
-config HAS_PRECBMEM_TIMESTAMP_REGION
-	bool "Timestamp region exists for pre-cbmem timestamps"
-	default y if ARCH_ROMSTAGE_X86_32 && CACHE_AS_RAM
-	help
-	  A separate region is maintained to allow storing of timestamps before
-	  cbmem comes up. This is useful for storing timestamps across different
-	  stage boundaries.
-
 config USE_BLOBS
 	bool "Allow use of binary-only repository"
 	default n
@@ -253,8 +245,8 @@ config CACHE_RELOCATED_RAMSTAGE_OUTSIDE_CBMEM
 
 config FLASHMAP_OFFSET
 	hex "Flash Map Offset"
-	default 0x00670000 if NORTHBRIDGE_INTEL_SANDYBRIDGE_MRC
-	default 0x00610000 if NORTHBRIDGE_INTEL_IVYBRIDGE_MRC
+	default 0x00670000 if NORTHBRIDGE_INTEL_SANDYBRIDGE
+	default 0x00610000 if NORTHBRIDGE_INTEL_IVYBRIDGE
 	default CBFS_SIZE if !ARCH_X86
 	default 0
 	help
@@ -376,17 +368,9 @@ menu "Mainboard"
 
 source "src/mainboard/Kconfig"
 
+# defaults for CBFS_SIZE are set at the end of the file.
 config CBFS_SIZE
 	hex "Size of CBFS filesystem in ROM"
-	default 0x100000 if HAVE_INTEL_FIRMWARE || \
-	  NORTHBRIDGE_INTEL_X4X || \
-	  NORTHBRIDGE_INTEL_GM45 || NORTHBRIDGE_INTEL_SANDYBRIDGE_MRC || \
-	  NORTHBRIDGE_INTEL_IVYBRIDGE_MRC || NORTHBRIDGE_INTEL_IVYBRIDGE || \
-	  NORTHBRIDGE_INTEL_SANDYBRIDGE || \
-	  NORTHBRIDGE_INTEL_NEHALEM || SOC_INTEL_BRASWELL || \
-	  SOC_INTEL_BROADWELL
-	default 0x200000 if SOC_INTEL_SKYLAKE
-	default ROM_SIZE
 	help
 	  This is the part of the ROM actually managed by CBFS, located at the
 	  end of the ROM (passed through cbfstool -o) on x86 and at at the start
@@ -406,6 +390,9 @@ config FMDFILE
 	  When an fmd is specified, it overrides the default format.
 
 endmenu
+
+# load site-local kconfig to allow user specific defaults and overrides
+source "site-local/Kconfig"
 
 config SYSTEM_TYPE_LAPTOP
 	default n
@@ -499,6 +486,15 @@ source "src/console/Kconfig"
 config HAVE_ACPI_RESUME
 	bool
 	default n
+
+config RESUME_PATH_SAME_AS_BOOT
+	bool
+	default y if ARCH_X86
+	depends on HAVE_ACPI_RESUME
+	help
+	  This option indicates that when a system resumes it takes the
+	  same path as a regular boot. e.g. an x86 system runs from the
+	  reset vector at 0xfffffff0 on both resume and warm/cold boot.
 
 config HAVE_HARD_RESET
 	bool
@@ -720,56 +716,7 @@ config MAINBOARD_SMBIOS_PRODUCT_NAME
 
 endmenu
 
-menu "Payload"
-
-choice
-	prompt "Add a payload"
-	default PAYLOAD_NONE if !ARCH_X86
-	default PAYLOAD_SEABIOS if ARCH_X86
-
-config PAYLOAD_NONE
-	bool "None"
-	help
-	  Select this option if you want to create an "empty" coreboot
-	  ROM image for a certain mainboard, i.e. a coreboot ROM image
-	  which does not yet contain a payload.
-
-	  For such an image to be useful, you have to use 'cbfstool'
-	  to add a payload to the ROM image later.
-
-config PAYLOAD_ELF
-	bool "An ELF executable payload"
-	help
-	  Select this option if you have a payload image (an ELF file)
-	  which coreboot should run as soon as the basic hardware
-	  initialization is completed.
-
-	  You will be able to specify the location and file name of the
-	  payload image later.
-
-source "payloads/external/*/Kconfig.name"
-
-endchoice
-
-source "payloads/external/*/Kconfig"
-
-config PAYLOAD_FILE
-	string "Payload path and filename"
-	depends on PAYLOAD_ELF
-	default "payload.elf"
-	help
-	  The path and filename of the ELF executable file to use as payload.
-
-# TODO: Defined if no payload? Breaks build?
-config COMPRESSED_PAYLOAD_LZMA
-	bool "Use LZMA compression for payloads"
-	default y
-	depends on !PAYLOAD_NONE && !PAYLOAD_LINUX
-	help
-	  In order to reduce the size payloads take up in the ROM chip
-	  coreboot can compress them using the LZMA algorithm.
-
-endmenu
+source "payloads/Kconfig"
 
 menu "Debugging"
 
@@ -1194,3 +1141,18 @@ config MAX_REBOOT_CNT
 	  Internal option that sets the maximum number of bootblock executions allowed
 	  with the normal image enabled before assuming the normal image is defective
 	  and switching to the fallback image.
+
+config CBFS_SIZE
+	hex
+	default ROM_SIZE
+	help
+	  This is the part of the ROM actually managed by CBFS.  Set it to be
+	  equal to the full rom size if that hasn't been overridden by the
+	  chipset or mainboard.
+
+config DEBUG_BOOT_STATE
+	bool
+	default n
+	help
+	  Control debugging of the boot state machine.  When selected displays
+	  the state boundaries in ramstage.
