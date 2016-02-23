@@ -1,0 +1,427 @@
+$ qemu-system-i386 -nographic -bios coreboot/build/coreboot.rom
+POST: 0x05
+QEMU debugcon not found [port 0x402]
+
+
+coreboot-248fb13 Thu Feb 18 12:38:01 UTC 2016 romstage starting...
+CBMEM:
+IMD: root @ 07fff000 254 entries.
+IMD: root @ 07ffec00 62 entries.
+CBFS @ 100 size 7fff00
+CBFS: 'Master Header Locator' located CBFS at [100:800000)
+CBFS: Locating 'fallback/ramstage'
+CBFS: Found @ offset 35c0 size a018
+QEMU debugcon not found [port 0x402]
+
+
+coreboot-248fb13 Thu Feb 18 12:38:01 UTC 2016 ramstage starting...
+POST: 0x39
+Moving GDT to 07ffe8a0...ok
+POST: 0x80
+POST: 0x70
+POST: 0x71
+POST: 0x72
+Enumerating buses...
+Show all devs... Before device enumeration.
+Root Device: enabled 1
+CPU_CLUSTER: 0: enabled 1
+APIC: 00: enabled 1
+DOMAIN: 0000: enabled 1
+PCI: 00:00.0: enabled 1
+PCI: 00:01.0: enabled 1
+PCI: 00:01.1: enabled 1
+PCI: 00:01.3: enabled 1
+Compare with tree...
+Root Device: enabled 1
+CPU_CLUSTER: 0: enabled 1
+  APIC: 00: enabled 1
+DOMAIN: 0000: enabled 1
+  PCI: 00:00.0: enabled 1
+  PCI: 00:01.0: enabled 1
+  PCI: 00:01.1: enabled 1
+  PCI: 00:01.3: enabled 1
+Root Device scanning...
+root_dev_scan_bus for Root Device
+CPU_CLUSTER: 0 enabled
+DOMAIN: 0000 enabled
+CPU_CLUSTER: 0 scanning...
+QEMU: firmware config interface detected
+QEMU: max_cpus is 1
+CPU: APIC: 00 enabled
+scan_bus: scanning of bus CPU_CLUSTER: 0 took 0 usecs
+DOMAIN: 0000 scanning...
+PCI: pci_scan_bus for bus 00
+POST: 0x24
+PCI: 00:00.0 [8086/1237] ops
+PCI: 00:00.0 [8086/1237] enabled
+PCI: 00:01.0 [8086/7000] bus ops
+PCI: 00:01.0 [8086/7000] enabled
+PCI: 00:01.1 [8086/7010] ops
+PCI: 00:01.1 [8086/7010] enabled
+PCI: 00:01.3 [8086/7113] bus ops
+PCI: 00:01.3 [8086/7113] enabled
+PCI: 00:02.0 [1013/00b8] ops
+PCI: 00:02.0 [1013/00b8] enabled
+PCI: 00:03.0 [8086/100e] enabled
+POST: 0x25
+PCI: 00:01.0 scanning...
+scan_lpc_bus for PCI: 00:01.0
+scan_lpc_bus for PCI: 00:01.0 done
+scan_bus: scanning of bus PCI: 00:01.0 took 0 usecs
+PCI: 00:01.3 scanning...
+scan_smbus for PCI: 00:01.3
+scan_smbus for PCI: 00:01.3 done
+scan_bus: scanning of bus PCI: 00:01.3 took 0 usecs
+POST: 0x55
+scan_bus: scanning of bus DOMAIN: 0000 took 0 usecs
+root_dev_scan_bus for Root Device done
+scan_bus: scanning of bus Root Device took 0 usecs
+done
+POST: 0x73
+found VGA at PCI: 00:02.0
+Setting up VGA for PCI: 00:02.0
+Setting PCI_BRIDGE_CTL_VGA for bridge DOMAIN: 0000
+Setting PCI_BRIDGE_CTL_VGA for bridge Root Device
+Allocating resources...
+Reading resources...
+Root Device read_resources bus 0 link: 0
+CPU_CLUSTER: 0 read_resources bus 0 link: 0
+CPU_CLUSTER: 0 read_resources bus 0 link: 0 done
+QEMU: 8 files in fw_cfg
+QEMU:     etc/boot-fail-wait [size=4]
+QEMU:     etc/e820 [size=20]
+QEMU:     genroms/kvmvapic.bin [size=9216]
+QEMU:     etc/system-states [size=6]
+QEMU:     bootorder [size=0]
+QEMU:     etc/acpi/tables [size=8192]
+QEMU:     etc/table-loader [size=4096]
+QEMU:     etc/acpi/rsdp [size=36]
+QEMU: e820/ram: 0x00000000 +0x08000000
+QEMU: reserve ioports 0x0510-0x0511 [firmware-config]
+QEMU: reserve ioports 0x5658-0x5658 [vmware-port]
+QEMU: reserve ioports 0xae00-0xae0f [pci-hotplug]
+QEMU: reserve ioports 0xaf00-0xaf1f [cpu-hotplug]
+QEMU: reserve ioports 0xafe0-0xafe3 [piix4-gpe0]
+DOMAIN: 0000 read_resources bus 0 link: 0
+DOMAIN: 0000 read_resources bus 0 link: 0 done
+Root Device read_resources bus 0 link: 0 done
+Done reading resources.
+Show resources in subtree (Root Device)...After reading.
+Root Device child on link 0 CPU_CLUSTER: 0
+  CPU_CLUSTER: 0 child on link 0 APIC: 00
+   APIC: 00
+  DOMAIN: 0000 child on link 0 PCI: 00:00.0
+  DOMAIN: 0000 resource base 0 size 0 align 0 gran 0 limit ffff flags 40040100 index 10000000
+  DOMAIN: 0000 resource base 0 size 0 align 0 gran 0 limit ffffffff flags 40040200 index 10000100
+  DOMAIN: 0000 resource base 0 size a0000 align 0 gran 0 limit 0 flags e0004200 index a
+  DOMAIN: 0000 resource base c0000 size 7f40000 align 0 gran 0 limit 0 flags e0004200 index b
+  DOMAIN: 0000 resource base 510 size 2 align 0 gran 0 limit ffff flags e0000100 index c
+  DOMAIN: 0000 resource base 5658 size 1 align 0 gran 0 limit ffff flags e0000100 index d
+  DOMAIN: 0000 resource base ae00 size 10 align 0 gran 0 limit ffff flags e0000100 index e
+  DOMAIN: 0000 resource base af00 size 20 align 0 gran 0 limit ffff flags e0000100 index f
+  DOMAIN: 0000 resource base afe0 size 4 align 0 gran 0 limit ffff flags e0000100 index 10
+  DOMAIN: 0000 resource base fec00000 size 100000 align 0 gran 0 limit ffffffff flags e0000200 index 2
+  DOMAIN: 0000 resource base fee00000 size 10000 align 0 gran 0 limit ffffffff flags e0000200 index 3
+   PCI: 00:00.0
+   PCI: 00:01.0
+   PCI: 00:01.0 resource base 0 size 1000 align 0 gran 0 limit ffff flags c0000100 index 1
+   PCI: 00:01.0 resource base ff800000 size 800000 align 0 gran 0 limit 0 flags d0000200 index 2
+   PCI: 00:01.1
+   PCI: 00:01.1 resource base 0 size 10 align 4 gran 4 limit ffff flags 100 index 20
+   PCI: 00:01.3
+   PCI: 00:01.3 resource base e400 size 40 align 0 gran 0 limit ffff flags d0000100 index 1
+   PCI: 00:01.3 resource base f00 size 10 align 0 gran 0 limit ffff flags d0000100 index 2
+   PCI: 00:02.0
+   PCI: 00:02.0 resource base 0 size 2000000 align 25 gran 25 limit ffffffff flags 1200 index 10
+   PCI: 00:02.0 resource base 0 size 1000 align 12 gran 12 limit ffffffff flags 200 index 14
+   PCI: 00:02.0 resource base 0 size 10000 align 16 gran 16 limit ffffffff flags 2200 index 30
+   PCI: 00:03.0
+   PCI: 00:03.0 resource base 0 size 20000 align 17 gran 17 limit ffffffff flags 200 index 10
+   PCI: 00:03.0 resource base 0 size 40 align 6 gran 6 limit ffff flags 100 index 14
+   PCI: 00:03.0 resource base 0 size 40000 align 18 gran 18 limit ffffffff flags 2200 index 30
+DOMAIN: 0000 io: base: 0 size: 0 align: 0 gran: 0 limit: ffff
+PCI: 00:03.0 14 *  [0x0 - 0x3f] io
+PCI: 00:01.1 20 *  [0x40 - 0x4f] io
+DOMAIN: 0000 io: base: 50 size: 50 align: 6 gran: 0 limit: ffff done
+DOMAIN: 0000 mem: base: 0 size: 0 align: 0 gran: 0 limit: ffffffff
+PCI: 00:02.0 10 *  [0x0 - 0x1ffffff] prefmem
+PCI: 00:03.0 30 *  [0x2000000 - 0x203ffff] mem
+PCI: 00:03.0 10 *  [0x2040000 - 0x205ffff] mem
+PCI: 00:02.0 30 *  [0x2060000 - 0x206ffff] mem
+PCI: 00:02.0 14 *  [0x2070000 - 0x2070fff] mem
+DOMAIN: 0000 mem: base: 2071000 size: 2071000 align: 25 gran: 0 limit: ffffffff done
+avoid_fixed_resources: DOMAIN: 0000
+avoid_fixed_resources:@DOMAIN: 0000 10000000 limit 0000ffff
+avoid_fixed_resources:@DOMAIN: 0000 10000100 limit ffffffff
+constrain_resources: DOMAIN: 0000 0a base 00000000 limit 0009ffff mem (fixed)
+constrain_resources: DOMAIN: 0000 0b base 000c0000 limit 07ffffff mem (fixed)
+constrain_resources: DOMAIN: 0000 0c base 00000510 limit 00000511 io (fixed)
+constrain_resources: DOMAIN: 0000 0d base 00005658 limit 00005658 io (fixed)
+constrain_resources: DOMAIN: 0000 0e base 0000ae00 limit 0000ae0f io (fixed)
+constrain_resources: DOMAIN: 0000 02 base fec00000 limit fecfffff mem (fixed)
+avoid_fixed_resources:@DOMAIN: 0000 10000000 base 00005659 limit 0000adff
+avoid_fixed_resources:@DOMAIN: 0000 10000100 base fc000000 limit febfffff
+Setting resources...
+DOMAIN: 0000 io: base:5659 size:50 align:6 gran:0 limit:adff
+PCI: 00:03.0 14 *  [0x5800 - 0x583f] io
+PCI: 00:01.1 20 *  [0x5840 - 0x584f] io
+DOMAIN: 0000 io: next_base: 5850 size: 50 align: 6 gran: 0 done
+DOMAIN: 0000 mem: base:fc000000 size:2071000 align:25 gran:0 limit:febfffff
+PCI: 00:02.0 10 *  [0xfc000000 - 0xfdffffff] prefmem
+PCI: 00:03.0 30 *  [0xfe000000 - 0xfe03ffff] mem
+PCI: 00:03.0 10 *  [0xfe040000 - 0xfe05ffff] mem
+PCI: 00:02.0 30 *  [0xfe060000 - 0xfe06ffff] mem
+PCI: 00:02.0 14 *  [0xfe070000 - 0xfe070fff] mem
+DOMAIN: 0000 mem: next_base: fe071000 size: 2071000 align: 25 gran: 0 done
+Root Device assign_resources, bus 0 link: 0
+DOMAIN: 0000 assign_resources, bus 0 link: 0
+PCI: 00:01.1 20 <- [0x0000005840 - 0x000000584f] size 0x00000010 gran 0x04 io
+PCI: 00:02.0 10 <- [0x00fc000000 - 0x00fdffffff] size 0x02000000 gran 0x19 prefmem
+PCI: 00:02.0 14 <- [0x00fe070000 - 0x00fe070fff] size 0x00001000 gran 0x0c mem
+PCI: 00:02.0 30 <- [0x00fe060000 - 0x00fe06ffff] size 0x00010000 gran 0x10 romem
+PCI: 00:03.0 10 <- [0x00fe040000 - 0x00fe05ffff] size 0x00020000 gran 0x11 mem
+PCI: 00:03.0 14 <- [0x0000005800 - 0x000000583f] size 0x00000040 gran 0x06 io
+PCI: 00:03.0 30 <- [0x00fe000000 - 0x00fe03ffff] size 0x00040000 gran 0x12 romem
+DOMAIN: 0000 assign_resources, bus 0 link: 0
+Root Device assign_resources, bus 0 link: 0
+Done setting resources.
+Show resources in subtree (Root Device)...After assigning values.
+Root Device child on link 0 CPU_CLUSTER: 0
+  CPU_CLUSTER: 0 child on link 0 APIC: 00
+   APIC: 00
+  DOMAIN: 0000 child on link 0 PCI: 00:00.0
+  DOMAIN: 0000 resource base 5659 size 50 align 6 gran 0 limit adff flags 40040100 index 10000000
+  DOMAIN: 0000 resource base fc000000 size 2071000 align 25 gran 0 limit febfffff flags 40040200 index 10000100
+  DOMAIN: 0000 resource base 0 size a0000 align 0 gran 0 limit 0 flags e0004200 index a
+  DOMAIN: 0000 resource base c0000 size 7f40000 align 0 gran 0 limit 0 flags e0004200 index b
+  DOMAIN: 0000 resource base 510 size 2 align 0 gran 0 limit ffff flags e0000100 index c
+  DOMAIN: 0000 resource base 5658 size 1 align 0 gran 0 limit ffff flags e0000100 index d
+  DOMAIN: 0000 resource base ae00 size 10 align 0 gran 0 limit ffff flags e0000100 index e
+  DOMAIN: 0000 resource base af00 size 20 align 0 gran 0 limit ffff flags e0000100 index f
+  DOMAIN: 0000 resource base afe0 size 4 align 0 gran 0 limit ffff flags e0000100 index 10
+  DOMAIN: 0000 resource base fec00000 size 100000 align 0 gran 0 limit ffffffff flags e0000200 index 2
+  DOMAIN: 0000 resource base fee00000 size 10000 align 0 gran 0 limit ffffffff flags e0000200 index 3
+   PCI: 00:00.0
+   PCI: 00:01.0
+   PCI: 00:01.0 resource base 0 size 1000 align 0 gran 0 limit ffff flags c0000100 index 1
+   PCI: 00:01.0 resource base ff800000 size 800000 align 0 gran 0 limit 0 flags d0000200 index 2
+   PCI: 00:01.1
+   PCI: 00:01.1 resource base 5840 size 10 align 4 gran 4 limit 584f flags 60000100 index 20
+   PCI: 00:01.3
+   PCI: 00:01.3 resource base e400 size 40 align 0 gran 0 limit ffff flags d0000100 index 1
+   PCI: 00:01.3 resource base f00 size 10 align 0 gran 0 limit ffff flags d0000100 index 2
+   PCI: 00:02.0
+   PCI: 00:02.0 resource base fc000000 size 2000000 align 25 gran 25 limit fdffffff flags 60001200 index 10
+   PCI: 00:02.0 resource base fe070000 size 1000 align 12 gran 12 limit fe070fff flags 60000200 index 14
+   PCI: 00:02.0 resource base fe060000 size 10000 align 16 gran 16 limit fe06ffff flags 60002200 index 30
+   PCI: 00:03.0
+   PCI: 00:03.0 resource base fe040000 size 20000 align 17 gran 17 limit fe05ffff flags 60000200 index 10
+   PCI: 00:03.0 resource base 5800 size 40 align 6 gran 6 limit 583f flags 60000100 index 14
+   PCI: 00:03.0 resource base fe000000 size 40000 align 18 gran 18 limit fe03ffff flags 60002200 index 30
+Done allocating resources.
+POST: 0x74
+Enabling resources...
+PCI: 00:00.0 cmd <- 00
+PCI: 00:01.0 cmd <- 00
+PCI: 00:01.1 cmd <- 01
+PCI: 00:01.3 cmd <- 00
+PCI: 00:02.0 cmd <- 03
+PCI: 00:03.0 cmd <- 03
+done.
+POST: 0x75
+Initializing devices...
+Root Device init ...
+POST: 0x75
+CPU_CLUSTER: 0 init ...
+Initializing CPU #0
+CPU: vendor Intel device 0x663
+CPU: family 0x06, model 0x06, stepping 0x03
+Setting up local apic... apic_id: 0x00 done.
+POST: 0x9b
+CPU #0 initialized
+POST: 0x75
+POST: 0x75
+POST: 0x75
+PCI: 00:00.0 init ...
+Assigning IRQ 10 to 0:1.3
+Assigning IRQ 11 to 0:3.0
+POST: 0x75
+PCI: 00:01.0 init ...
+RTC Init
+POST: 0x75
+PCI: 00:01.1 init ...
+IDE: Primary IDE interface: on
+IDE: Secondary IDE interface: on
+IDE: Access to legacy IDE ports: off
+POST: 0x75
+POST: 0x75
+PCI: 00:02.0 init ...
+POST: 0x75
+PCI: 00:03.0 init ...
+Devices initialized
+Show all devs... After init.
+Root Device: enabled 1
+CPU_CLUSTER: 0: enabled 1
+APIC: 00: enabled 1
+DOMAIN: 0000: enabled 1
+PCI: 00:00.0: enabled 1
+PCI: 00:01.0: enabled 1
+PCI: 00:01.1: enabled 1
+PCI: 00:01.3: enabled 1
+PCI: 00:02.0: enabled 1
+PCI: 00:03.0: enabled 1
+POST: 0x76
+Finalize devices...
+Devices finalized
+POST: 0x77
+POST: 0x79
+POST: 0x9a
+Copying Interrupt Routing Table to 0x000f0000... done.
+Copying Interrupt Routing Table to 0x07fdd000... done.
+PIRQ table: 128 bytes.
+POST: 0x9c
+QEMU: found acpi tables in fw_cfg.
+QEMU: loading "etc/acpi/rsdp" to 0x7fb9000 (len 36)
+QEMU: loading "etc/acpi/tables" to 0x7fb9040 (len 8192)
+QEMU: loaded acpi tables from fw_cfg.
+ACPI tables: 8256 bytes.
+smbios_write_tables: 07fb8000
+Root Device (Emulation QEMU x86 i440fx/piix4)
+CPU_CLUSTER: 0 (QEMU Northbridge i440fx)
+APIC: 00 (unknown)
+DOMAIN: 0000 (QEMU Northbridge i440fx)
+PCI: 00:00.0 (QEMU Northbridge i440fx)
+PCI: 00:01.0 (Intel 82371FB/SB/MX/AB/EB/MB Southbridge)
+PCI: 00:01.1 (Intel 82371FB/SB/MX/AB/EB/MB Southbridge)
+PCI: 00:01.3 (Intel 82371FB/SB/MX/AB/EB/MB Southbridge)
+PCI: 00:02.0 (unknown)
+PCI: 00:03.0 (unknown)
+SMBIOS tables: 471 bytes.
+POST: 0x9e
+POST: 0x9d
+Writing table forward entry at 0x00000500
+Wrote coreboot table at: 00000500, 0x10 bytes, checksum f7e3
+Table forward entry ends at 0x00000528.
+... aligned to 0x00001000
+Writing coreboot table at 0x07fb0000
+rom_table_end = 0x07fb0000
+... aligned to 0x07fb0000
+0. 0000000000000000-0000000000000fff: CONFIGURATION TABLES
+1. 0000000000001000-000000000009ffff: RAM
+2. 00000000000c0000-0000000007faffff: RAM
+3. 0000000007fb0000-0000000007ffffff: CONFIGURATION TABLES
+4. 00000000ff800000-00000000ffffffff: RESERVED
+CBFS @ 100 size 7fff00
+CBFS: 'Master Header Locator' located CBFS at [100:800000)
+FMAP: Found "FLASH" version 1.1 at 0.
+FMAP: base = ff800000 size = 800000 #areas = 3
+Wrote coreboot table at: 07fb0000, 0x218 bytes, checksum e16f
+coreboot table: 560 bytes.
+IMD ROOT    0. 07fff000 00001000
+IMD SMALL   1. 07ffe000 00001000
+CONSOLE     2. 07fde000 00020000
+IRQ TABLE   3. 07fdd000 00001000
+ACPI        4. 07fb9000 00024000
+SMBIOS      5. 07fb8000 00000800
+COREBOOT    6. 07fb0000 00008000
+IMD small region:
+  IMD ROOT    0. 07ffec00 00000400
+  CAR GLOBALS 1. 07ffeac0 00000140
+  ROMSTAGE    2. 07ffeaa0 00000004
+  GDT         3. 07ffe8a0 00000200
+POST: 0x7a
+CBFS @ 100 size 7fff00
+CBFS: 'Master Header Locator' located CBFS at [100:800000)
+CBFS: Locating 'fallback/payload'
+CBFS: Found @ offset d640 size ec9b
+Loading segment from rom address 0xff80d778
+  code (compression=1)
+  New segment dstaddr 0xe341c memsize 0x1cbe4 srcaddr 0xff80d7b0 filesize 0xec63
+Loading segment from rom address 0xff80d794
+  Entry Point 0x000ff06e
+Bounce Buffer at 07f6f000, 264016 bytes
+Loading Segment: addr: 0x00000000000e341c memsz: 0x000000000001cbe4 filesz: 0x000000000000ec63
+lb: [0x0000000000100000, 0x00000000001203a8)
+Post relocation: addr: 0x00000000000e341c memsz: 0x000000000001cbe4 filesz: 0x000000000000ec63
+using LZMA
+[ 0x000e341c, 00100000, 0x00100000) <- ff80d7b0
+dest 000e341c, end 00100000, bouncebuffer 7f6f000
+Loaded segments
+POST: 0x7b
+Jumping to boot code at 000ff06e(07fb0000)
+POST: 0xf8
+CPU0: stack: 00117000 - 00118000, lowest used address 00117bbc, stack used: 1092 bytes
+entry    = 0x000ff06e
+lb_start = 0x00100000
+lb_size  = 0x000203a8
+buffer   = 0x07f6f000
+SeaBIOS (version 1.9.1-20160218_213012-localhost)
+BUILD: gcc: (Ubuntu 4.8.2-19ubuntu1) 4.8.2 binutils: (GNU Binutils for Ubuntu) 2.24
+SeaBIOS (version 1.9.1-20160218_213012-localhost)
+BUILD: gcc: (Ubuntu 4.8.2-19ubuntu1) 4.8.2 binutils: (GNU Binutils for Ubuntu) 2.24
+Found coreboot cbmem console @ 7fde000
+Found mainboard Emulation QEMU x86 i440fx/piix4
+Relocating init from 0x000e4820 to 0x07f64850 (size 46880)
+Found CBFS header at 0xff800138
+multiboot: eax=0, ebx=0
+Found 6 PCI devices (max PCI bus is 00)
+Copying SMBIOS entry point from 0x07fb8000 to 0x000f7180
+Copying ACPI RSDP from 0x07fb9000 to 0x000f7160
+Copying PIR from 0x07fdd000 to 0x000f70e0
+Using pmtimer, ioport 0xe408
+Scan for VGA option rom
+Running option rom at c000:0003
+Turning on vga text mode console
+SeaBIOS (version 1.9.1-20160218_213012-localhost)
+All threads complete.
+Found 1 lpt ports
+Found 1 serial ports
+ATA controller 1 at 1f0/3f4/0 (irq 14 dev 9)
+ATA controller 2 at 170/374/0 (irq 15 dev 9)
+PS2 keyboard initialized
+DVD/CD [ata1-0: QEMU DVD-ROM ATAPI-4 DVD/CD]
+Searching bootorder for: /pci@i0cf8/*@1,1/drive@1/disk@0
+All threads complete.
+Scan for option roms
+Running option rom at c900:0003
+pmm call arg1=1
+pmm call arg1=0
+pmm call arg1=1
+pmm call arg1=0
+Searching bootorder for: /pci@i0cf8/*@3
+
+Press ESC for boot menu.
+
+Searching bootorder for: HALT
+Space available for UMB: ca000-ee800, f69a0-f7040
+Returned 262144 bytes of ZoneHigh
+e820 map has 6 items:
+  0: 0000000000000000 - 000000000009fc00 = 1 RAM
+  1: 000000000009fc00 - 00000000000a0000 = 2 RESERVED
+  2: 00000000000f0000 - 0000000000100000 = 2 RESERVED
+  3: 0000000000100000 - 0000000007fb0000 = 1 RAM
+  4: 0000000007fb0000 - 0000000008000000 = 2 RESERVED
+  5: 00000000ff800000 - 0000000100000000 = 2 RESERVED
+enter handle_19:
+  NULL
+Booting from DVD/CD...
+Device reports MEDIUM NOT PRESENT
+scsi_is_ready returned -1
+Boot failed: Could not read from CDROM (code 0003)
+enter handle_18:
+  NULL
+Booting from ROM...
+Booting from c900:0363
+enter handle_18:
+  NULL
+Booting from Floppy...
+Boot failed: could not read the boot disk
+
+enter handle_18:
+  NULL
+Booting from Hard Disk...
+Boot failed: could not read the boot disk
+
+enter handle_18:
+  NULL
+No bootable device.  Retrying in 60 seconds.

@@ -23,9 +23,10 @@ void __attribute__ ((weak)) arch_segment_loaded(uintptr_t start, size_t size,
 	/* do nothing */
 }
 
+// 运行不同的prog(或者是ramstage，或者是payload)
 void prog_run(struct prog *prog)
 {
-	platform_prog_run(prog);
+	platform_prog_run(prog); // 弱链接
 	arch_prog_run(prog);
 }
 
