@@ -1,0 +1,177 @@
+include/config/auto.conf: include/common.h include/linux/kconfig.h \
+ include/generated/autoconf.h include/config.h include/config_defaults.h \
+ include/config_uncmd_spl.h include/configs/qemu-x86.h \
+ include/configs/x86-common.h arch/x86/include/asm/ibmpc.h \
+ arch/x86/include/asm/config.h include/config_fallbacks.h \
+ include/asm-offsets.h include/linux/bitops.h \
+ arch/x86/include/asm/types.h include/linux/compiler.h \
+ include/linux/compiler-gcc.h include/linux/compiler-gcc4.h \
+ arch/x86/include/asm/bitops.h include/asm-generic/bitops/fls.h \
+ include/asm-generic/bitops/__fls.h include/asm-generic/bitops/fls64.h \
+ include/linux/types.h include/linux/posix_types.h include/linux/stddef.h \
+ arch/x86/include/asm/posix_types.h \
+ /usr/lib/gcc/i686-linux-gnu/4.8/include/stdbool.h include/linux/string.h \
+ arch/x86/include/asm/string.h include/linux/linux_string.h \
+ include/linux/stringify.h arch/x86/include/asm/ptrace.h \
+ /usr/lib/gcc/i686-linux-gnu/4.8/include/stdarg.h include/linux/kernel.h \
+ include/part.h include/ide.h include/common.h include/part_efi.h \
+ include/efi.h include/flash.h include/image.h include/compiler.h \
+ /usr/lib/gcc/i686-linux-gnu/4.8/include/stddef.h \
+ arch/x86/include/asm/byteorder.h include/linux/byteorder/little_endian.h \
+ include/linux/byteorder/swab.h include/linux/byteorder/generic.h \
+ include/lmb.h arch/x86/include/asm/u-boot.h include/asm-generic/u-boot.h \
+ include/command.h include/linker_lists.h include/hash.h include/libfdt.h \
+ include/libfdt_env.h include/linux/types.h include/fdt.h \
+ include/fdt_support.h include/pci.h include/pci_ids.h \
+ arch/x86/include/asm/global_data.h arch/x86/include/asm/processor.h \
+ include/asm-generic/global_data.h include/membuff.h include/linux/list.h \
+ include/linux/poison.h include/display_options.h \
+ arch/x86/include/asm/u-boot-x86.h include/uuid.h include/vsprintf.h \
+ include/u-boot/crc.h include/net.h arch/x86/include/asm/cache.h \
+ include/bootstage.h include/environment.h
+
+include/linux/kconfig.h:
+
+include/generated/autoconf.h:
+
+include/config.h:
+
+include/config_defaults.h:
+
+include/config_uncmd_spl.h:
+
+include/configs/qemu-x86.h:
+
+include/configs/x86-common.h:
+
+arch/x86/include/asm/ibmpc.h:
+
+arch/x86/include/asm/config.h:
+
+include/config_fallbacks.h:
+
+include/asm-offsets.h:
+
+include/linux/bitops.h:
+
+arch/x86/include/asm/types.h:
+
+include/linux/compiler.h:
+
+include/linux/compiler-gcc.h:
+
+include/linux/compiler-gcc4.h:
+
+arch/x86/include/asm/bitops.h:
+
+include/asm-generic/bitops/fls.h:
+
+include/asm-generic/bitops/__fls.h:
+
+include/asm-generic/bitops/fls64.h:
+
+include/linux/types.h:
+
+include/linux/posix_types.h:
+
+include/linux/stddef.h:
+
+arch/x86/include/asm/posix_types.h:
+
+/usr/lib/gcc/i686-linux-gnu/4.8/include/stdbool.h:
+
+include/linux/string.h:
+
+arch/x86/include/asm/string.h:
+
+include/linux/linux_string.h:
+
+include/linux/stringify.h:
+
+arch/x86/include/asm/ptrace.h:
+
+/usr/lib/gcc/i686-linux-gnu/4.8/include/stdarg.h:
+
+include/linux/kernel.h:
+
+include/part.h:
+
+include/ide.h:
+
+include/common.h:
+
+include/part_efi.h:
+
+include/efi.h:
+
+include/flash.h:
+
+include/image.h:
+
+include/compiler.h:
+
+/usr/lib/gcc/i686-linux-gnu/4.8/include/stddef.h:
+
+arch/x86/include/asm/byteorder.h:
+
+include/linux/byteorder/little_endian.h:
+
+include/linux/byteorder/swab.h:
+
+include/linux/byteorder/generic.h:
+
+include/lmb.h:
+
+arch/x86/include/asm/u-boot.h:
+
+include/asm-generic/u-boot.h:
+
+include/command.h:
+
+include/linker_lists.h:
+
+include/hash.h:
+
+include/libfdt.h:
+
+include/libfdt_env.h:
+
+include/linux/types.h:
+
+include/fdt.h:
+
+include/fdt_support.h:
+
+include/pci.h:
+
+include/pci_ids.h:
+
+arch/x86/include/asm/global_data.h:
+
+arch/x86/include/asm/processor.h:
+
+include/asm-generic/global_data.h:
+
+include/membuff.h:
+
+include/linux/list.h:
+
+include/linux/poison.h:
+
+include/display_options.h:
+
+arch/x86/include/asm/u-boot-x86.h:
+
+include/uuid.h:
+
+include/vsprintf.h:
+
+include/u-boot/crc.h:
+
+include/net.h:
+
+arch/x86/include/asm/cache.h:
+
+include/bootstage.h:
+
+include/environment.h:

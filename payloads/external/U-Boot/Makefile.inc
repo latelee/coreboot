@@ -54,7 +54,8 @@ $(project_dir)/$(TAG-y): fetch
 	echo "    Checking out $(project_name) revision $(TAG-y)"
 	cd $(project_dir); git checkout master; git branch -D coreboot 2>/dev/null; git checkout -b coreboot $(TAG-y)
 
-config: $(project_dir)/$(TAG-y)
+#no need to clone here,just download by hand
+config: #$(project_dir)/$(TAG-y)
 	rm -f $(project_config_file)
 ifneq ($(CONFIG_PAYLOAD_CONFIGFILE),)
 ifneq ("$(wildcard $(CONFIG_PAYLOAD_CONFIGFILE))","")
@@ -64,6 +65,7 @@ else
 	false
 endif
 else
+	echo "    generate $(project_config_file).."
 	cat $(project_dir)/configs/coreboot-x86_defconfig >> $(project_config_file)
 endif
 
@@ -71,7 +73,7 @@ endif
 
 build: config
 	echo "    MAKE       $(project_name) $(TAG-y)"
-	$(MAKE) -C $(project_dir)
+	make -C $(project_dir)
 
 clean:
 	test -d $(project_dir) && $(MAKE) -C $(project_dir) clean || exit 0
