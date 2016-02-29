@@ -20,8 +20,10 @@
 #include <cpu/x86/post_code.h>
 #include <cbmem.h>
 
+	/* BIST结果在eax，如果为0表示正常，则跳到cache_as_ram，否则挂机 */
 	cmp   $0, %eax
 	je    cache_as_ram
+	/* 0xa0应该类似错误之类，如果使能POSTCODE则发送到IO */
 	mov   $0xa0, %eax
 	jmp   .Lhlt
 
@@ -33,10 +35,12 @@ cache_as_ram:
 	 * Make a fake stack that has the return value back to this code.
 	 */
 	lea   fake_fsp_stack, %esp
+	/* find_fsp在fsp_util.c文件中 */
 	jmp   find_fsp
 find_fsp_ret:
 	/* Save the FSP location */
 	mov   %eax,   %ebp
+	/* CONFIG_FSP_LOC为用户指定的FSP地址，大于等于则表示OK，否则挂机，错误码为0xb0 */
 	cmp   $CONFIG_FSP_LOC, %eax
 	jae   find_fsp_ok
 	mov   $0xb0, %eax
@@ -79,6 +83,7 @@ car_init_ok:
 	movl  %esp, %ebp
 
 	/* Clear the cbmem CAR memory region. */
+	/* 清零CAR内存 */
 	movl  %ecx, %edi
 	movl  %edx, %ecx
 	sub   %edi, %ecx

@@ -29,6 +29,9 @@
 #include "memory.c"
 
 #include <cpu/intel/romstage.h>
+
+// bist为blockboot传递的参数，intel在启动时会进行自检，正常情况下bist为0
+// 在cache_as_ram.inc中会调用到此处的main
 void main(unsigned long bist)
 {
 	int cbmem_was_initted;
@@ -38,8 +41,9 @@ void main(unsigned long bist)
 
 	console_init();
 
+	printk(BIOS_INFO, "--BIST: %08x", bist);
 	/* Halt if there was a built in self test failure */
-	report_bist_failure(bist);
+	//report_bist_failure(bist);
 
 	//print_pci_devices();
 	//dump_pci_devices();

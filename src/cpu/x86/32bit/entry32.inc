@@ -60,6 +60,7 @@ __protected_start:
 	post_code(POST_ENTER_PROTECTED_MODE)
 #endif
 
+	/* $ROM_DATA_SEG值为0x10，分别赋值给ds、es等，目的是什么? */
 	movw	$ROM_DATA_SEG, %ax
 	movw	%ax, %ds
 	movw	%ax, %es
@@ -68,5 +69,5 @@ __protected_start:
 	movw	%ax, %gs
 
 	/* Restore the BIST value to %eax */
-	/* 恢复BIST值到eax，疑问：后面会使用吗？哪里使用？ */
+	/* 恢复BIST值到eax，疑问：后面会使用吗？哪里使用？--romstage入口函数参数即为BIST */
 	movl	%ebp, %eax

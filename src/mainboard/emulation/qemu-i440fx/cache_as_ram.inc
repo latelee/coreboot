@@ -35,6 +35,8 @@ cache_as_ram:
 	movl	$(CACHE_AS_RAM_SIZE >> 2), %ecx
 	// movl	$0x23322332, %eax
 	xorl	%eax, %eax
+	/* 使用 EAX 填写位于 ESI:EDI 的 ECX 个双字 */
+	/* 将CACHE_AS_RAM_BASE地址的大小为CACHE_AS_RAM_SIZE区域初始化为0 */
 	rep	stosl
 
 	post_code(0x21)
@@ -49,17 +51,20 @@ cache_as_ram:
 
 before_romstage:
 	post_code(0x29)
+	/* 跳转到romstage的主函数 */
 	/* Call romstage.c main function. */
 	call	main
 
 	post_code(0x30)
 
+ /* 哪里调用? */
 __main:
 	post_code(POST_PREPARE_RAMSTAGE)
 	cld			/* Clear direction flag. */
 
 	movl	$CONFIG_RAMTOP, %esp
 	movl	%esp, %ebp
+	/* 调用copy_and_run */
 	call	copy_and_run
 
 .Lhlt:

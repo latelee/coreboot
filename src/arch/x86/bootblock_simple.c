@@ -15,6 +15,7 @@
 #include <arch/bootblock_romcc.h>
 #include <halt.h>
 
+/* 这又是在哪里调用的呢 */
 static void main(unsigned long bist)
 {
 	if (boot_cpu()) {

@@ -212,7 +212,7 @@ void main(FSP_INFO_HEADER *fsp_info_header)
    */
 	post_code(0x48);
 	printk(BIOS_DEBUG, "Starting the Intel FSP (early_init)\n");
-	fsp_early_init(fsp_info_header); // 在fsp_utitl.c文件，不返回，直接到下面的romstage_main_continue函数。
+	fsp_early_init(fsp_info_header); // 在fsp_util.c文件，不返回，直接到下面的romstage_main_continue函数。
 	die("Uh Oh! fsp_early_init should not return here.\n");
 }
 

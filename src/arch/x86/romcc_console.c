@@ -61,6 +61,7 @@ void console_tx_flush(void)
 #include <console/post.c>
 #include <console/die.c>
 
+// 这个函数在哪里使用
 void console_init(void)
 {
 	static const char console_test[] =
@@ -69,7 +70,7 @@ void console_init(void)
 		COREBOOT_EXTRA_VERSION
 		" "
 		COREBOOT_BUILD
-		" romstage starting...\n";
+		" romstage starting...!!!! ROMSTAGE...\n";
 
 	console_hw_init();
 
