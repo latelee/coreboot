@@ -22,6 +22,7 @@
  * be loaded over the ramstage code. */
 static void jmp_payload_no_bounce_buffer(void *entry)
 {
+    printk(BIOS_DEBUG, "Coreboot mission complete,PAYLOAD coming up......\n\n");
 	/* Jump to kernel */
 	__asm__ __volatile__(
 		"	cld	\n\t"
@@ -48,6 +49,8 @@ static void jmp_payload(void *entry, unsigned long buffer, unsigned long size)
 	printk(BIOS_SPEW, "lb_start = 0x%08lx\n", lb_start);
 	printk(BIOS_SPEW, "lb_size  = 0x%08lx\n", lb_size);
 	printk(BIOS_SPEW, "buffer   = 0x%08lx\n", buffer);
+
+    printk(BIOS_DEBUG, "Coreboot mission complete,PAYLOAD coming up......\n\n");
 
 	/* Jump to kernel */
 	__asm__ __volatile__(
@@ -206,8 +209,13 @@ static void try_payload(struct prog *prog)
 
 void arch_prog_run(struct prog *prog)
 {
+    printk(BIOS_DEBUG, "prog_run: %s jump to boot code at %p\n", prog_name(prog), prog_entry(prog));
+
+    // ENV_RAMSTAGE为1，表示是在ramstage阶段，接着就到payload或kernel了，
 	if (ENV_RAMSTAGE)
 		try_payload(prog);
+
+    // 如果是romstage，则直接跳转到地址执行 (romstage后即为ramstage)
 	__asm__ volatile (
 #ifdef __x86_64__
 		"jmp  *%%rdi\n"
