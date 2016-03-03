@@ -47,7 +47,9 @@ cache_as_ram:
 	/* Restore the BIST result. */
 	movl	%ebp, %eax
 	movl	%esp, %ebp
+	/* eax为BIST值，将其压栈，作为main的参数，然后调用main函数 */
 	pushl	%eax
+	/*测试 pushl $0xdeadbeaf*/
 
 before_romstage:
 	post_code(0x29)
@@ -57,13 +59,17 @@ before_romstage:
 
 	post_code(0x30)
 
- /* 哪里调用? */
+ /* 调用完main后，就到了copy_and_run，即ramstage阶段了 */
 __main:
 	post_code(POST_PREPARE_RAMSTAGE)
 	cld			/* Clear direction flag. */
 
 	movl	$CONFIG_RAMTOP, %esp
 	movl	%esp, %ebp
+	/* 此处为调试用
+	movl $9, %eax
+	pushl	%eax
+	*/
 	/* 调用copy_and_run */
 	call	copy_and_run
 

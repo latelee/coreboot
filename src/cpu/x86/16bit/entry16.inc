@@ -117,6 +117,7 @@ _start:
 	movl	%eax, %cr0
 
 	/* 重新赋值BIST到eax */
+	/* 测试用 -- movl $0xab, %eax*/
 	/* Restore BIST to %eax */
 	movl	%ebp, %eax
 

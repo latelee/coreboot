@@ -20,6 +20,7 @@
 #include <cpu/x86/msr.h>
 #include <cpu/x86/lapic.h>
 #include <cpu/x86/tsc.h>
+#include <cpu/x86/name.h>
 #include <arch/cpu.h>
 #include <device/path.h>
 #include <device/device.h>
@@ -186,7 +187,7 @@ static void identify_cpu(struct device *cpu)
 		vendor_name[10] = (result.ecx >> 16) & 0xff;
 		vendor_name[11] = (result.ecx >> 24) & 0xff;
 		vendor_name[12] = '\0';
-
+        //printk(BIOS_DEBUG, "vendor_name: %s\n", vendor_name);
 		/* Intel-defined flags: level 0x00000001 */
 		if (cpuid_level >= 0x00000001) {
 			cpu->device = cpuid_eax(0x00000001); // eax为1，获取cpu信息(数字)，如family/model/stepping
@@ -231,6 +232,39 @@ static void set_cpu_ops(struct device *cpu)
 	cpu->ops = driver ? driver->ops : NULL;
 }
 
+// 使用另一个name.c同名函数，需要配置，这里是临时使用
+static void fill_processor_name1(char *processor_name)
+{
+	struct cpuid_result regs;
+	char temp_processor_name[49];
+	char *processor_name_start;
+	unsigned int *name_as_ints = (unsigned int *)temp_processor_name;
+	int i;
+
+	/* 
+	用cpuid指令，eax传入0x80000002/0x80000003/0x80000004，
+	共3个，每个4个寄存器，每个寄存器4字节，故一共48字节。
+	参考IA32开发手册第2卷第3章。
+	*/
+	for (i = 0; i < 3; i++) {
+		regs = cpuid(0x80000002 + i);
+		name_as_ints[i * 4 + 0] = regs.eax;
+		name_as_ints[i * 4 + 1] = regs.ebx;
+		name_as_ints[i * 4 + 2] = regs.ecx;
+		name_as_ints[i * 4 + 3] = regs.edx;
+	}
+
+	temp_processor_name[48] = 0; // 最后的字节为0，结束
+
+	/* Skip leading spaces. */
+	processor_name_start = temp_processor_name;
+	while (*processor_name_start == ' ')
+		processor_name_start++;
+
+	memset(processor_name, 0, 49);
+	strcpy(processor_name, processor_name_start);
+}
+
 void cpu_initialize(unsigned int index)
 {
 	/* Because we busy wait at the printk spinlock.
@@ -266,7 +300,19 @@ void cpu_initialize(unsigned int index)
 	/* 打开CPU family、model，例如0x06_0x37表示atom e3000系列(e3800也在其中)，参考IA32手册卷3第35章表格1 */
 	printk(BIOS_DEBUG, "CPU: family 0x%02x, model 0x%02x, stepping 0x%02x\n",
 		c.x86, c.x86_model, c.x86_mask);
+    printk(BIOS_DEBUG, "DisplayFamily_DisplayModel: %02X_%02XH\n", c.x86, c.x86_model);
+    // test
+    msr_t platform_id = rdmsr(0x17);
+    printk(BIOS_DEBUG, "platform_id: %x %x\n", platform_id.hi, platform_id.lo);
 
+	char processor_name[49];
+
+	/* Print processor name */
+	fill_processor_name1(processor_name);
+	// 打印CPU，如qemu会打印:QEMU Virtual CPU version 2.0.0
+	printk(BIOS_INFO, "LLDEBUG CPU: %s.\n", processor_name);
+
+    halt();
 	/* Lookup the cpu's operations */
 	set_cpu_ops(cpu);
 

@@ -59,11 +59,16 @@ void do_putchar(unsigned char byte);
 #define printk(LEVEL, fmt, args...)	\
 	do { do_printk(LEVEL, fmt, ##args); } while(0)
 
+#define ll_printk(fmt, ...) printk(BIOS_DEBUG, "[LL DEBUG]: " fmt, ##__VA_ARGS__)
+
 #else
 static inline void console_init(void) {}
 static inline int console_log_level(int msg_level) { return 0; }
 static inline void printk(int LEVEL, const char *fmt, ...) {}
 static inline void do_putchar(unsigned char byte) {}
+
+#define ll_printk(fmt, ...) {}
+
 #endif
 
 #if CONFIG_CHROMEOS

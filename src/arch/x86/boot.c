@@ -209,13 +209,14 @@ static void try_payload(struct prog *prog)
 
 void arch_prog_run(struct prog *prog)
 {
-    printk(BIOS_DEBUG, "prog_run: %s jump to boot code at %p\n", prog_name(prog), prog_entry(prog));
+    ll_printk("prog_run: %s jump to boot code at %p\n", prog_name(prog), prog_entry(prog));
 
     // ENV_RAMSTAGE为1，表示是在ramstage阶段，接着就到payload或kernel了，
 	if (ENV_RAMSTAGE)
 		try_payload(prog);
 
-    // 如果是romstage，则直接跳转到地址执行 (romstage后即为ramstage)
+    // 如果当前是romstage，则直接跳转到地址执行 (romstage后即为ramstage)
+     ll_printk("jump to ramstage....\n");
 	__asm__ volatile (
 #ifdef __x86_64__
 		"jmp  *%%rdi\n"

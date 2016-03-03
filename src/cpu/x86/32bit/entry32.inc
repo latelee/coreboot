@@ -69,5 +69,6 @@ __protected_start:
 	movw	%ax, %gs
 
 	/* Restore the BIST value to %eax */
-	/* 恢复BIST值到eax，疑问：后面会使用吗？哪里使用？--romstage入口函数参数即为BIST */
+	/* 恢复BIST值到eax，疑问：后面会使用吗？哪里使用？--答: qemu x86为例，在cache as ram阶段，会保存此段，而最后romstage入口函数参数即为BIST */
+	/* 测试用 -- movl $0xaa, %eax */
 	movl	%ebp, %eax

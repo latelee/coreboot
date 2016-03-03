@@ -494,8 +494,9 @@ static void init_bsp(struct bus *cpu_bus)
 	/* Print processor name */
 	fill_processor_name(processor_name);
 	// ´òÓ¡CPU£¬ÈçCPU: Intel(R) Atom(TM) CPU  E3815  @ 1.46GHz.
-	printk(BIOS_INFO, "CPU: %s.\n", processor_name);
+	printk(BIOS_INFO, "----CPU: %s.\n", processor_name);
 
+    halt();
 	/* Ensure the local apic is enabled */
 	enable_lapic();
 
@@ -513,6 +514,8 @@ static void init_bsp(struct bus *cpu_bus)
 	/* Track BSP in cpu_map structures. */
 	cpus[info->index].dev = info->cpu;
 	cpus[info->index].apic_id = cpu_path.apic.apic_id;
+
+    halt();
 }
 
 int mp_init(struct bus *cpu_bus, struct mp_params *p)

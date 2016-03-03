@@ -16,6 +16,7 @@
 #include <arch/stages.h>
 #include <program_loading.h>
 
+// 在cache_as_ram.inc中调用
 void asmlinkage copy_and_run(void)
 {
 	run_ramstage();

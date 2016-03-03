@@ -41,9 +41,9 @@ void main(unsigned long bist)
 
 	console_init();
 
-	printk(BIOS_INFO, "--BIST: %08x", bist);
+	ll_printk("qemu-i440fx romstage --BIST: 0x%x\n", (unsigned int)bist);
 	/* Halt if there was a built in self test failure */
-	//report_bist_failure(bist);
+	report_bist_failure(bist);
 
 	//print_pci_devices();
 	//dump_pci_devices();

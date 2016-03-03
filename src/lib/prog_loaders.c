@@ -100,6 +100,7 @@ static int load_relocatable_ramstage(struct prog *ramstage)
 	return rmodule_stage_load(&rmod_ram);
 }
 
+// 运行下一阶段ramstage
 void run_ramstage(void)
 {
 	struct prog ramstage =
@@ -122,6 +123,8 @@ void run_ramstage(void)
 			goto fail;
 	} else if (cbfs_prog_stage_load(&ramstage))
 		goto fail;
+
+    printk(BIOS_DEBUG, "run_ramstage()....\n");
 
 	stage_cache_add(STAGE_RAMSTAGE, &ramstage);
 
