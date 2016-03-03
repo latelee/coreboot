@@ -1,0 +1,2 @@
+config BOARD_INTEL_BAYTRAIL_FSP
+	bool "Baytrail FSP-based CRB"
