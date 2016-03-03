@@ -29,7 +29,6 @@
  * SUCH DAMAGE.
  */
 
-#include <assert.h>
 #include <endian.h>
 #include <libpayload.h>
 #include <lz4.h>
@@ -38,9 +37,28 @@
  * seem to be very inefficient in practice (at least on ARM64). Since libpayload
  * knows about endinaness and allows some basic assumptions (such as unaligned
  * access support), we can easily write the ones we need ourselves. */
-static u16 LZ4_readLE16(const void *src) { return le16toh(*(u16 *)src); }
-static void LZ4_copy4(void *dst, const void *src) { *(u32 *)dst = *(u32 *)src; }
-static void LZ4_copy8(void *dst, const void *src) { *(u64 *)dst = *(u64 *)src; }
+static uint16_t LZ4_readLE16(const void *src)
+{
+	return le16toh(*(uint16_t *)src);
+}
+static void LZ4_copy8(void *dst, const void *src)
+{
+/* ARM32 needs to be a special snowflake to prevent GCC from coalescing the
+ * access into LDRD/STRD (which don't support unaligned accesses). */
+#ifdef __arm__
+	uint32_t x0, x1;
+	asm volatile (
+		"ldr %[x0], [%[src]]\n\t"
+		"ldr %[x1], [%[src], #4]\n\t"
+		"str %[x0], [%[dst]]\n\t"
+		"str %[x1], [%[dst], #4]\n\t"
+		: [x0]"=r"(x0), [x1]"=r"(x1)
+		: [src]"r"(src), [dst]"r"(dst)
+		: "memory" );
+#else
+	*(uint64_t *)dst = *(const uint64_t *)src;
+#endif
+}
 
 typedef  uint8_t BYTE;
 typedef uint16_t U16;
@@ -52,58 +70,59 @@ typedef uint64_t U64;
 #define likely(expr) __builtin_expect((expr) != 0, 1)
 #define unlikely(expr) __builtin_expect((expr) != 0, 0)
 
-/* Unaltered (except removing unrelated code) from github.com/Cyan4973/lz4. */
-#include "lz4.c"	/* #include for inlining, do not link! */
+/* Unaltered (just removed unrelated code) from github.com/Cyan4973/lz4/dev. */
+#include "lz4.c.inc"	/* #include for inlining, do not link! */
 
 #define LZ4F_MAGICNUMBER 0x184D2204
 
 struct lz4_frame_header {
-	u32 magic;
+	uint32_t magic;
 	union {
-		u8 flags;
+		uint8_t flags;
 		struct {
-			u8 reserved0		: 2;
-			u8 has_content_checksum	: 1;
-			u8 has_content_size	: 1;
-			u8 has_block_checksum	: 1;
-			u8 independent_blocks	: 1;
-			u8 version		: 2;
+			uint8_t reserved0		: 2;
+			uint8_t has_content_checksum	: 1;
+			uint8_t has_content_size	: 1;
+			uint8_t has_block_checksum	: 1;
+			uint8_t independent_blocks	: 1;
+			uint8_t version			: 2;
 		};
 	};
 	union {
-		u8 block_descriptor;
+		uint8_t block_descriptor;
 		struct {
-			u8 reserved1		: 4;
-			u8 max_block_size	: 3;
-			u8 reserved2		: 1;
+			uint8_t reserved1		: 4;
+			uint8_t max_block_size		: 3;
+			uint8_t reserved2		: 1;
 		};
 	};
-	/* + u64 content_size iff has_content_size is set */
-	/* + u8 header_checksum */
+	/* + uint64_t content_size iff has_content_size is set */
+	/* + uint8_t header_checksum */
 } __attribute__((packed));
 
 struct lz4_block_header {
 	union {
-		u32 raw;
+		uint32_t raw;
 		struct {
-			u32 size		: 31;
-			u32 not_compressed	: 1;
+			uint32_t size		: 31;
+			uint32_t not_compressed	: 1;
 		};
 	};
 	/* + size bytes of data */
-	/* + u32 block_checksum iff has_block_checksum is set */
+	/* + uint32_t block_checksum iff has_block_checksum is set */
 } __attribute__((packed));
 
 size_t ulz4fn(const void *src, size_t srcn, void *dst, size_t dstn)
 {
 	const void *in = src;
 	void *out = dst;
+	size_t out_size = 0;
 	int has_block_checksum;
 
 	{ /* With in-place decompression the header may become invalid later. */
 		const struct lz4_frame_header *h = in;
 
-		if (srcn < sizeof(*h) + sizeof(u64) + sizeof(u8))
+		if (srcn < sizeof(*h) + sizeof(uint64_t) + sizeof(uint8_t))
 			return 0;	/* input overrun */
 
 		/* We assume there's always only a single, standard frame. */
@@ -117,25 +136,27 @@ size_t ulz4fn(const void *src, size_t srcn, void *dst, size_t dstn)
 
 		in += sizeof(*h);
 		if (h->has_content_size)
-			in += sizeof(u64);
-		in += sizeof(u8);
+			in += sizeof(uint64_t);
+		in += sizeof(uint8_t);
 	}
 
 	while (1) {
-		struct lz4_block_header b = { .raw = le32toh(*(u32 *)in) };
+		struct lz4_block_header b = { .raw = le32toh(*(uint32_t *)in) };
 		in += sizeof(struct lz4_block_header);
 
-		if (in - src + b.size > srcn)
-			return 0;		/* input overrun */
+		if ((size_t)(in - src) + b.size > srcn)
+			break;			/* input overrun */
 
-		if (!b.size)
-			return out - dst;	/* decompression successful */
+		if (!b.size) {
+			out_size = out - dst;
+			break;			/* decompression successful */
+		}
 
 		if (b.not_compressed) {
-			size_t size = MIN((u32)b.size, dst + dstn - out);
+			size_t size = MIN((uint32_t)b.size, dst + dstn - out);
 			memcpy(out, in, size);
 			if (size < b.size)
-				return 0;	/* output overrun */
+				break;		/* output overrun */
 			else
 				out += size;
 		} else {
@@ -144,15 +165,17 @@ size_t ulz4fn(const void *src, size_t srcn, void *dst, size_t dstn)
 					dst + dstn - out, endOnInputSize,
 					full, 0, noDict, out, NULL, 0);
 			if (ret < 0)
-				return 0;	/* decompression error */
+				break;		/* decompression error */
 			else
 				out += ret;
 		}
 
 		in += b.size;
 		if (has_block_checksum)
-			in += sizeof(u32);
+			in += sizeof(uint32_t);
 	}
+
+	return out_size;
 }
 
 size_t ulz4f(const void *src, void *dst)

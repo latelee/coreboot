@@ -2381,6 +2381,19 @@ static void discover_timB(ramctr_timing * ctrl, int channel, int slotrank)
 	}
 	FOR_ALL_LANES {
 		struct run rn = get_longest_zero_run(statistics[lane], 128);
+		/* timC is a direct function of timB's 6 LSBs.
+		 * Some tests increments the value of timB by a small value,
+		 * which might cause the 6bit value to overflow, if it's close
+		 * to 0x3F. Increment the value by a small offset if it's likely
+		 * to overflow, to make sure it won't overflow while running
+		 * tests and bricks the system due to a non matching timC.
+		 *
+		 * TODO: find out why some tests (edge write discovery)
+		 *       increment timB. */
+		if ((rn.start & 0x3F) == 0x3E)
+			rn.start += 2;
+		else if ((rn.start & 0x3F) == 0x3F)
+			rn.start += 1;
 		ctrl->timings[channel][slotrank].lanes[lane].timB = rn.start;
 		if (rn.all)
 			die("timB discovery failed");
@@ -3422,9 +3435,12 @@ static void discover_timC_write(ramctr_timing * ctrl)
 					u32 raw_statistics[MAX_TIMC + 1];
 					int statistics[MAX_TIMC + 1];
 
+					/* Make sure rn.start < rn.end */
+					statistics[MAX_TIMC] = 1;
+
 					fill_pattern5(ctrl, channel, pat);
 					write32(DEFAULT_MCHBAR + 0x4288 + 0x400 * channel, 0x1f);
-					for (timC = 0; timC < MAX_TIMC + 1; timC++) {
+					for (timC = 0; timC < MAX_TIMC; timC++) {
 						FOR_ALL_LANES
 							ctrl->timings[channel][slotrank].lanes[lane].timC = timC;
 						program_timings(ctrl, channel);
@@ -3436,10 +3452,11 @@ static void discover_timC_write(ramctr_timing * ctrl)
 					}
 					FOR_ALL_LANES {
 						struct run rn;
-						for (timC = 0; timC <= MAX_TIMC; timC++)
+						for (timC = 0; timC < MAX_TIMC; timC++)
 							statistics[timC] =
 								!!(raw_statistics[timC] &
 								   (1 << lane));
+
 						rn = get_longest_zero_run(statistics,
 									  MAX_TIMC + 1);
 						if (rn.all)
@@ -4072,26 +4089,61 @@ void init_dram_ddr3(spd_raw_data * spds, int mobile, int min_tck,
 
 static unsigned int get_mem_min_tck(void)
 {
+	u32 reg32;
+	u8 rev;
 	const struct device *dev;
-	const struct northbridge_intel_sandybridge_config *cfg;
+	const struct northbridge_intel_sandybridge_config *cfg = NULL;
 
 	dev = dev_find_slot(0, HOST_BRIDGE);
-	if (!(dev && dev->chip_info))
-		return DEFAULT_TCK;
-
-	cfg = dev->chip_info;
+	if (dev)
+		cfg = dev->chip_info;
 
 	/* If this is zero, it just means devicetree.cb didn't set it */
-	if (cfg->max_mem_clock_mhz == 0)
-		return DEFAULT_TCK;
+	if (!cfg || cfg->max_mem_clock_mhz == 0) {
+		rev = pci_read_config8(PCI_DEV(0, 0, 0), PCI_DEVICE_ID);
 
-	if (cfg->max_mem_clock_mhz >= 800)
-		return TCK_800MHZ;
-	else if (cfg->max_mem_clock_mhz >= 666)
-		return TCK_666MHZ;
-	else if (cfg->max_mem_clock_mhz >= 533)
-		return TCK_533MHZ;
-	return TCK_400MHZ;
+		if ((rev & BASE_REV_MASK) == BASE_REV_SNB) {
+			/* read Capabilities A Register DMFC bits */
+			reg32 = pci_read_config32(PCI_DEV(0, 0, 0), CAPID0_A);
+			reg32 &= 0x7;
+
+			switch (reg32) {
+			case 7: return TCK_533MHZ;
+			case 6: return TCK_666MHZ;
+			case 5: return TCK_800MHZ;
+			/* reserved: */
+			default:
+				break;
+			}
+		} else {
+			/* read Capabilities B Register DMFC bits */
+			reg32 = pci_read_config32(PCI_DEV(0, 0, 0), CAPID0_B);
+			reg32 = (reg32 >> 4) & 0x7;
+
+			switch (reg32) {
+			case 7: return TCK_533MHZ;
+			case 6: return TCK_666MHZ;
+			case 5: return TCK_800MHZ;
+			case 4: return TCK_933MHZ;
+			case 3: return TCK_1066MHZ;
+			case 2: return TCK_1200MHZ;
+			case 1: return TCK_1333MHZ;
+			/* reserved: */
+			default:
+				break;
+			}
+		}
+		return DEFAULT_TCK;
+	} else {
+		if (cfg->max_mem_clock_mhz >= 800)
+			return TCK_800MHZ;
+		else if (cfg->max_mem_clock_mhz >= 666)
+			return TCK_666MHZ;
+		else if (cfg->max_mem_clock_mhz >= 533)
+			return TCK_533MHZ;
+		else
+			return TCK_400MHZ;
+	}
 }
 
 void perform_raminit(int s3resume)

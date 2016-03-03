@@ -32,6 +32,8 @@
       <li>Set up the <a href="#MemoryMap">Memory Map"</a></li>
     </ol>
   </li>
+  <li><a href="#AcpiTables">ACPI Tables</a></li>
+  <li><a href="#LegacyHardware">Legacy Hardware</a></li>
 </ol>
 
 
@@ -556,8 +558,165 @@ Use the following steps to debug the call to TempRamInit:
 
 
 
+<hr>
+<h1><a name="AcpiTables">ACPI Tables</a></h1>
+<p>
+  One of the payloads that needs ACPI tables is the EDK2 <a target="_blank" href="quark.html#CorebootPayloadPkg">CorebootPayloadPkg</a>.
+</p>
+
+<h2>FADT</h2>
+<p>
+  The EDK2 module
+  CorebootModulePkg/Library/CbParseLib/<a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootModulePkg/Library/CbParseLib/CbParseLib.c#l450">CbParseLib.c</a>
+  requires that the FADT contains the values in the table below.
+  These values are placed into a HOB identified by
+  <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootModulePkg/CorebootModulePkg.dec#l36">gUefiAcpiBoardInfoGuid</a>
+  by routine
+  CorebootModulePkg/CbSupportPei/CbSupportPei/<a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootModulePkg/CbSupportPei/CbSupportPei.c#l364">CbPeiEntryPoint</a>.
+</p>
+<table border="1">
+  <tr bgcolor="#c0ffc0">
+    <td>Coreboot Field</td>
+    <td>EDK2 Field</td>
+    <td>gUefiAcpiBoardInfoGuid</td>
+    <td>Use</li>
+    <td>
+      <a target="_blank" href="http://www.uefi.org/sites/default/files/resources/ACPI_6.0.pdf">ACPI Spec.</a>
+      Section
+    </td>
+  </tr>
+  <tr>
+    <td>gpe0_blk<br>gpe0_blk_len</td>
+    <td>Gpe0Blk<br>Gpe0BlkLen</td>
+    <td>
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootModulePkg/Library/CbParseLib/CbParseLib.c#l477">PmGpeEnBase</a>
+    </td>
+    <td><a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/ResetSystemLib/ResetSystemLib.c#l129">Shutdown</a></td>
+    <td>4.8.4.1</td>
+  </tr>
+  <tr>
+    <td>pm1a_cnt_blk</td>
+    <td>Pm1aCntBlk</td>
+    <td>PmCtrlRegBase</td>
+    <td>
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/ResetSystemLib/ResetSystemLib.c#l139">Shutdown</a><br>
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/ResetSystemLib/ResetSystemLib.c#l40">Suspend</a>
+    </td>
+    <td>4.8.3.2.1</td>
+  </tr>
+  <tr>
+    <td>pm1a_evt_blk</td>
+    <td>Pm1aEvtBlk</td>
+    <td>PmEvtBase</td>
+    <td><a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/ResetSystemLib/ResetSystemLib.c#l134">Shutdown</a></td>
+    <td>4.8.3.1.1</td>
+  </tr>
+  <tr>
+    <td>pm_tmr_blk</td>
+    <td>PmTmrBlk</td>
+    <td>PmTimerRegBase</td>
+    <td>
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/AcpiTimerLib/AcpiTimerLib.c#l55">Timer</a>
+    </td>
+    <td>4.8.3.3</td>
+  </tr>
+  <tr>
+    <td>reset_reg.</td>
+    <td>ResetReg.Address</td>
+    <td>ResetRegAddress</td>
+    <td>
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/ResetSystemLib/ResetSystemLib.c#l71">Cold</a>
+      and
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/ResetSystemLib/ResetSystemLib.c#l98">Warm</a>
+      resets
+    </td>
+    <td>4.3.3.6</td>
+  </tr>
+  <tr>
+    <td>reset_value</td>
+    <td>ResetValue</td>
+    <td>ResetValue</td>
+    <td>
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/ResetSystemLib/ResetSystemLib.c#l71">Cold</a>
+      and
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/CorebootPayloadPkg/Library/ResetSystemLib/ResetSystemLib.c#l98">Warm</a>
+      resets
+    </td>
+    <td>4.8.3.6</td>
+  </tr>
+</table>
+<p>
+  The EDK2 data structure is defined in
+  MdeModulePkg/Include/IndustryStandard/<a target="_blank" href="https://github.com/tianocore/edk2/blob/master/MdePkg/Include/IndustryStandard/Acpi61.h#l111">Acpi61.h</a>
+  The coreboot data structure is defined in
+  src/arch/x86/include/arch/<a target="_blank" href="http://review.coreboot.org/gitweb?p=coreboot.git;a=blob;f=src/arch/x86/include/arch/acpi.h;hb=HEAD#l237">acpi.h</a>
+</p>
+
+<ol>
+  <li>
+    Select <a target="_blank" href="../Board/board.html#AcpiTables">HAVE_ACPI_TABLES</a>
+    in the board's Kconfig file
+  </li>
+  <li>Create a acpi.c module:
+    <ol type="A">
+      <li>Add the acpi_fill_in_fadt routine and initialize the values above</li>
+    </ol>
+  </li>
+</ol>
+
+
 
 <hr>
-<p>Modified: 18 February 2016</p>
+<h1><a name="LegacyHardware">Legacy Hardware</a></h1>
+<p>
+  One of the payloads that needs legacy hardare is the EDK2 <a target="_blank" href="quark.html#CorebootPayloadPkg">CorebootPayloadPkg</a>.
+</p>
+
+<table border="1">
+  <tr bgcolor="c0ffc0">
+    <th>Peripheral</th>
+    <th>Use</th>
+    <th>8259 Interrupt Vector</th>
+    <th>IDT Base Offset</th>
+    <th>Interrupt Handler</th>
+  </tr>
+  <tr>
+    <td>
+      <a target="_blank" href="http://www.scs.stanford.edu/10wi-cs140/pintos/specs/8254.pdf">8254</a>
+      Programmable Interval Timer
+    </td>
+    <td>
+      EDK2: PcAtChipsetPkg/8254TimerDxe/<a target="_blank" href="https://github.com/tianocore/edk2/blob/master/PcAtChipsetPkg/8254TimerDxe/Timer.c">Timer.c</a>
+    </td>
+    <td>0</td>
+    <td>0x340</td>
+    <td>
+      <a target="_blank" href="https://github.com/tianocore/edk2/blob/master/PcAtChipsetPkg/8254TimerDxe/Timer.c#l71">TimerInterruptHandler</a>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <a target="_blank" href="https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=1&cad=rja&uact=8&ved=0ahUKEwibxYKU3ZDLAhVOzWMKHfuqB40QFggcMAA&url=http%3A%2F%2Fbochs.sourceforge.net%2Ftechspec%2Fintel-8259a-pic.pdf.gz&usg=AFQjCNF1NT0OQ6ys1Pn6Iv9sv6cKRzZbGg&sig2=HfBszp9xTVO_fajjPWCsJw">8259</a>
+      Programmable Interrupt Controller
+    </td>
+    <td>
+      EDK2: PcAtChipsetPkg/8259InterruptControllerDxe/<a target="_blank" href="https://github.com/tianocore/edk2/blob/master/PcAtChipsetPkg/8259InterruptControllerDxe/8259.c">8259.c</a>
+    </td>
+    <td>
+      Master interrupts: 0, 2 - 7<br>
+      Slave interrupts: 8 - 15<br>
+      Interrupt vector 1 is never generated, the cascaded input generates interrupts 8 - 15
+    </td>
+    <td>
+      Master: 0x340, 0x350 - 0x378<br>
+      Slave: 0x380 - 0x3b8<br>
+      Interrupt descriptors are 8 bytes each
+    </td>
+    <td>&nbsp;</td>
+  </tr>
+</table>
+
+<hr>
+<p>Modified: 28 February 2016</p>
   </body>
 </html>
