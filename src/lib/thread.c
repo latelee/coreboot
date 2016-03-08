@@ -258,6 +258,8 @@ void threads_initialize(void)
 	struct cpu_info *ci;
 	u8 *thread_stacks;
 
+    ll_printk("int %s()\n", __func__);
+
 	thread_stacks = arch_get_thread_stackbase();
 
 	/* Initialize the BSP thread first. The cpu_info structure is assumed

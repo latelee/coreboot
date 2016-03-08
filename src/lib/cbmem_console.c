@@ -220,6 +220,7 @@ static void copy_console_buffer(struct cbmem_console *old_cons_p,
 	new_cons_p->buffer_cursor = cursor;
 }
 
+// romstage和ramstage都会调到这个函数
 static void cbmemc_reinit(int is_recovery)
 {
 	struct cbmem_console *cbm_cons_p;
@@ -242,7 +243,7 @@ static void cbmemc_reinit(int is_recovery)
 
 	/* If CBMEM entry already existed, old contents is not altered. */
 	cbm_cons_p = cbmem_add(CBMEM_ID_CONSOLE, size);
-
+    ll_printk("in %s...\n", __func__);
 	init_console_ptr(cbm_cons_p, size, flags);
 }
 ROMSTAGE_CBMEM_INIT_HOOK(cbmemc_reinit)

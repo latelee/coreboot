@@ -22,6 +22,7 @@
  * be loaded over the ramstage code. */
 static void jmp_payload_no_bounce_buffer(void *entry)
 {
+    ll_printk("%s() coreboot end---------------------------------------\n", __func__);
     printk(BIOS_DEBUG, "Coreboot mission complete,PAYLOAD coming up......\n\n");
 	/* Jump to kernel */
 	__asm__ __volatile__(
@@ -50,6 +51,7 @@ static void jmp_payload(void *entry, unsigned long buffer, unsigned long size)
 	printk(BIOS_SPEW, "lb_size  = 0x%08lx\n", lb_size);
 	printk(BIOS_SPEW, "buffer   = 0x%08lx\n", buffer);
 
+    ll_printk("%s() coreboot end==============================\n", __func__);
     printk(BIOS_DEBUG, "Coreboot mission complete,PAYLOAD coming up......\n\n");
 
 	/* Jump to kernel */

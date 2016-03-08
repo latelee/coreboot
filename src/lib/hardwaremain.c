@@ -99,6 +99,8 @@ struct boot_state {
 #define BS_INIT_ENTRY(state_, run_func_)	\
 	[state_] = BS_INIT(state_, run_func_)
 
+// 此结构体定义ramstage依次执行的函数
+// 前一函数结束后会返回下一阶段要执行的函数id
 static struct boot_state boot_states[] = {
 	BS_INIT_ENTRY(BS_PRE_DEVICE, bs_pre_device),
 	BS_INIT_ENTRY(BS_DEV_INIT_CHIPS, bs_dev_init_chips),
@@ -116,6 +118,7 @@ static struct boot_state boot_states[] = {
 
 static boot_state_t bs_pre_device(void *arg)
 {
+    ll_printk("in %s()...\n", __func__);
 	return BS_DEV_INIT_CHIPS;
 }
 
@@ -123,6 +126,7 @@ static boot_state_t bs_dev_init_chips(void *arg)
 {
 	timestamp_add_now(TS_DEVICE_ENUMERATE);
 
+    ll_printk("in %s()...\n", __func__);
 	/* Initialize chips early, they might disable unused devices. */
 	dev_initialize_chips();
 
@@ -131,6 +135,7 @@ static boot_state_t bs_dev_init_chips(void *arg)
 
 static boot_state_t bs_dev_enumerate(void *arg)
 {
+    ll_printk("in %s()...\n", __func__);
 	/* Find the devices we don't have hard coded knowledge about. */
 	dev_enumerate();
 
@@ -141,6 +146,7 @@ static boot_state_t bs_dev_resources(void *arg)
 {
 	timestamp_add_now(TS_DEVICE_CONFIGURE);
 
+    ll_printk("in %s()...\n", __func__);
 	/* Now compute and assign the bus resources. */
 	dev_configure();
 
@@ -150,6 +156,8 @@ static boot_state_t bs_dev_resources(void *arg)
 static boot_state_t bs_dev_enable(void *arg)
 {
 	timestamp_add_now(TS_DEVICE_ENABLE);
+
+    ll_printk("in %s()...\n", __func__);
 
 	/* Now actually enable devices on the bus */
 	dev_enable();
@@ -161,6 +169,8 @@ static boot_state_t bs_dev_init(void *arg)
 {
 	timestamp_add_now(TS_DEVICE_INITIALIZE);
 
+    ll_printk("in %s()...\n", __func__);
+
 	/* And of course initialize devices on the bus */
 	dev_initialize();
 
@@ -169,6 +179,8 @@ static boot_state_t bs_dev_init(void *arg)
 
 static boot_state_t bs_post_device(void *arg)
 {
+    ll_printk("in %s()...\n", __func__);
+
 	dev_finalize();
 	timestamp_add_now(TS_DEVICE_DONE);
 
@@ -177,8 +189,11 @@ static boot_state_t bs_post_device(void *arg)
 
 static boot_state_t bs_os_resume_check(void *arg)
 {
+    ll_printk("in %s()...\n", __func__);
+
 #if CONFIG_HAVE_ACPI_RESUME
 	void *wake_vector;
+    
 
 	wake_vector = acpi_find_wakeup_vector();
 
@@ -196,6 +211,8 @@ static boot_state_t bs_os_resume_check(void *arg)
 
 static boot_state_t bs_os_resume(void *wake_vector)
 {
+    ll_printk("in %s()...\n", __func__);
+
 #if CONFIG_HAVE_ACPI_RESUME
 	acpi_resume(wake_vector);
 #endif
@@ -205,6 +222,7 @@ static boot_state_t bs_os_resume(void *wake_vector)
 static boot_state_t bs_write_tables(void *arg)
 {
 	timestamp_add_now(TS_WRITE_TABLES);
+    ll_printk("in %s()...\n", __func__);
 
 	/* Now that we have collected all of our information
 	 * write our configuration tables.
@@ -218,6 +236,8 @@ static boot_state_t bs_write_tables(void *arg)
 
 static boot_state_t bs_payload_load(void *arg)
 {
+    ll_printk("in %s()...\n", __func__);
+
 	payload_load();
 
 	return BS_PAYLOAD_BOOT;
@@ -225,6 +245,8 @@ static boot_state_t bs_payload_load(void *arg)
 
 static boot_state_t bs_payload_boot(void *arg)
 {
+    ll_printk("in %s()...\n", __func__);
+
 	payload_run();
 
 	printk(BIOS_EMERG, "Boot failed");
@@ -276,6 +298,7 @@ static void bs_run_timers(int drain)
 static void bs_run_timers(int drain) {}
 #endif
 
+// 此函数作用?
 static void bs_call_callbacks(struct boot_state *state,
                               boot_state_sequence_t seq)
 {
@@ -323,9 +346,12 @@ static void bs_walk_state_machine(void)
 {
 
 	while (1) {
+        static int cnt = 1;
+        
 		struct boot_state *state;
 		boot_state_t next_id;
 
+        // 拿到一个state
 		state = &boot_states[current_phase.state_id];
 
 		if (state->complete) {
@@ -350,8 +376,12 @@ static void bs_walk_state_machine(void)
 
 		bs_sample_time(state);
 
+
+        ll_printk("%s() state %d start==============================\n", __func__, state->id);
 		post_code(state->post_code);
 
+        // 真正调用boot_states定义好的函数
+        // 函数返回后，得到下一次要执行的id
 		next_id = state->run_state(state->arg);
 
 		if (IS_ENABLED(CONFIG_DEBUG_BOOT_STATE))
@@ -375,6 +405,8 @@ static void bs_walk_state_machine(void)
 		bs_report_time(state);
 
 		state->complete = 1;
+
+        
 	}
 }
 
@@ -399,7 +431,7 @@ static int boot_state_sched_callback(struct boot_state *state,
 int boot_state_sched_on_entry(struct boot_state_callback *bscb,
                               boot_state_t state_id)
 {
-	struct boot_state *state = &boot_states[state_id];
+	struct boot_state *state = &boot_states[state_id]; // 上面的结构体
 
 	return boot_state_sched_callback(state, bscb, BS_ON_ENTRY);
 }
@@ -414,6 +446,7 @@ int boot_state_sched_on_exit(struct boot_state_callback *bscb,
 
 static void boot_state_schedule_static_entries(void)
 {
+    // 这是外部的，在哪里定义有?
 	extern struct boot_state_init_entry *_bs_init_begin[];
 	struct boot_state_init_entry **slot;
 
@@ -427,6 +460,7 @@ static void boot_state_schedule_static_entries(void)
 	}
 }
 
+// 似乎这是ramstage的入口函数了
 void main(void)
 {
 	/* TODO: Understand why this is here and move to arch/platform code. */
@@ -437,6 +471,7 @@ void main(void)
 	/* console_init() MUST PRECEDE ALL printk()! Additionally, ensure
 	 * it is the very first thing done in ramstage.*/
 	console_init();
+    ll_printk("In ramstage main...\n");
 
 	post_code(POST_CONSOLE_READY);
 
@@ -459,12 +494,15 @@ void main(void)
 	acpi_is_wakeup();
 #endif
 
+    /* x86上没做实现 */
 	exception_init();
+
 	threads_initialize();
 
 	/* Schedule the static boot state entries. */
-	boot_state_schedule_static_entries();
+	boot_state_schedule_static_entries(); // 这个似乎是注册回调函数的作用
 
+    /* 依次执行上面定义的状态函数 */
 	bs_walk_state_machine();
 
 	die("Boot state machine failure.\n");

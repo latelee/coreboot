@@ -312,7 +312,7 @@ void cpu_initialize(unsigned int index)
 	// 打印CPU，如qemu会打印:QEMU Virtual CPU version 2.0.0
 	printk(BIOS_INFO, "LLDEBUG CPU: %s.\n", processor_name);
 
-    halt();
+    //halt();
 	/* Lookup the cpu's operations */
 	set_cpu_ops(cpu);
 

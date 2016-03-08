@@ -62,6 +62,8 @@ void dev_initialize_chips(void)
 {
 	struct device *dev;
 
+    ll_printk("in %s()\n", __func__);
+
 	for (dev = all_devices; dev; dev = dev->next) {
 		/* Initialize chip if we haven't yet. */
 		if (dev->chip_ops && dev->chip_ops->init &&
@@ -973,7 +975,7 @@ void scan_bridges(struct bus *bus)
  * scan_bus() method also has to create the device structure and attach
  * it to the device tree.
  */
-/* 这个函数扫描设备上所有外设 */
+/* 这个函数扫描设备上所有外设--在ramstage较早时候被调用 */
 void dev_enumerate(void)
 {
 	struct device *root;

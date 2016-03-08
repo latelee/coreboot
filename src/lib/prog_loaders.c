@@ -124,7 +124,7 @@ void run_ramstage(void)
 	} else if (cbfs_prog_stage_load(&ramstage))
 		goto fail;
 
-    printk(BIOS_DEBUG, "run_ramstage()....\n");
+    ll_printk("in %s()...\n", __func__);
 
 	stage_cache_add(STAGE_RAMSTAGE, &ramstage);
 
