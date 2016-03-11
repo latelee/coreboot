@@ -29,14 +29,14 @@
 
 #include <arch/rom_segs.h>
 .code16
-.globl _start
-.type _start, @function
+.globl _start16bit
+.type _start16bit, @function
 
-_start:
-	/* ¹ØÖĞ¶Ï */
+_start16bit:
+	/* å…³ä¸­æ–­ */
 	cli
 	/* Save the BIST result */
-	/* ±£´æeaxµÄBIST(Built-In Self-Test)µÄÖµ£¬ÉÏµç»ò¸´Î»ºó£¬eaxÖµÎª0±íÊ¾ËùÓĞµÄ²âÊÔÍ¨¹ı£¬²Î¼ûintel¿ª·¢ÎÄµµ3A 9.1.2 */
+	/* ä¿å­˜eaxçš„BIST(Built-In Self-Test)çš„å€¼ï¼Œä¸Šç”µæˆ–å¤ä½åï¼Œeaxå€¼ä¸º0è¡¨ç¤ºæ‰€æœ‰çš„æµ‹è¯•é€šè¿‡ï¼Œå‚è§intelå¼€å‘æ–‡æ¡£3A 9.1.2 */
 	movl	%eax, %ebp
 #if !IS_ENABLED(CONFIG_NO_EARLY_BOOTBLOCK_POSTCODES)
 	post_code(POST_RESET_VECTOR_CORRECT)
@@ -47,7 +47,7 @@ _start:
 	 * could still get false address translations due to the TLB if we
 	 * didn't invalidate it. Thanks to kmliu@sis.com.tw for this TLB fix.
 	 */
-	/* cr3ÇåÁã£¬Ê¹TLBÎŞĞ§(cacheÎŞĞ§) ¡ª CR3:Ò³Ä¿Â¼»ùÖ·µÄÎïÀíµØÖ·ºÍPCDºÍPWT±êÖ¾Î»(ºÍCACHEÓĞ¹Ø) */
+	/* cr3æ¸…é›¶ï¼Œä½¿TLBæ— æ•ˆ(cacheæ— æ•ˆ) â€” CR3:é¡µç›®å½•åŸºå€çš„ç‰©ç†åœ°å€å’ŒPCDå’ŒPWTæ ‡å¿—ä½(å’ŒCACHEæœ‰å…³) */
 	xorl	%eax, %eax
 	movl	%eax, %cr3    /* Invalidate TLB*/
 
@@ -82,12 +82,12 @@ _start:
 	 * The criteria for relocation have been relaxed to their
 	 * utmost, so that we can use the same code for both
 	 * our initial entry point and startup of the second cpu.
-	 * The code assumes when executing at _start that:
-	 * (((cs & 0xfff) == 0) and (ip == _start & 0xffff))
+	 * The code assumes when executing at _start16bit that:
+	 * (((cs & 0xfff) == 0) and (ip == _start16bit & 0xffff))
 	 * or
 	 * ((cs == anything) and (ip == 0)).
 	 *
-	 * The restrictions in reset16.inc mean that _start initially
+	 * The restrictions in reset16.inc mean that _start16bit initially
 	 * must be loaded at or above 0xffff0000 or below 0x100000.
 	 *
 	 * The linker scripts computes gdtptr16_offset by simply returning
@@ -110,14 +110,14 @@ _start:
 	subw	%ax, %bx
 	lgdtl	%cs:(%bx)
 
-	/* ½øÈë±£»¤Ä£Ê½ PEÎª1 */
+	/* è¿›å…¥ä¿æŠ¤æ¨¡å¼ PEä¸º1 */
 	movl	%cr0, %eax
 	andl	$0x7FFAFFD1, %eax /* PG,AM,WP,NE,TS,EM,MP = 0 */
 	orl	$0x60000001, %eax /* CD, NW, PE = 1 */
 	movl	%eax, %cr0
 
-	/* ÖØĞÂ¸³ÖµBISTµ½eax */
-	/* ²âÊÔÓÃ -- movl $0xab, %eax*/
+	/* é‡æ–°èµ‹å€¼BISTåˆ°eax */
+	/* æµ‹è¯•ç”¨ -- movl $0xab, %eax*/
 	/* Restore BIST to %eax */
 	movl	%ebp, %eax
 
@@ -141,6 +141,6 @@ nullidt:
 	.long	0
 	.word	0
 
-.globl _estart
-_estart:
+.globl _estart16bit
+_estart16bit:
 	.code32

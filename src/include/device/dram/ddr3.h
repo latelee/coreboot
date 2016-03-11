@@ -36,7 +36,7 @@
 #define TCK_1333MHZ     192
 #define TCK_1200MHZ     212
 #define TCK_1066MHZ     240
-#define TCK_933MHZ      275
+#define TCK_933MHZ      274
 #define TCK_800MHZ      320
 #define TCK_666MHZ      384
 #define TCK_533MHZ      480
@@ -167,6 +167,10 @@ typedef struct dimm_attr_st {
 	u16 voltage;
 	/* XMP: max DIMMs per channel supported (1-4) */
 	u8 dimms_per_channel;
+	/* Manufacturer ID */
+	u16 manufacturer_id;
+	/* ASCII part number - NULL terminated */
+	u8 part_number[17];
 } dimm_attr;
 
 /** Result of the SPD decoding process */
