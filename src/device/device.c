@@ -69,7 +69,7 @@ void dev_initialize_chips(void)
 		if (dev->chip_ops && dev->chip_ops->init &&
 				!dev->chip_ops->initialized) {
 			post_log_path(dev);
-			dev->chip_ops->init(dev->chip_info);
+			dev->chip_ops->init(dev->chip_info); // 调用chip_operations的init函数
 			dev->chip_ops->initialized = 1;
 		}
 	}
