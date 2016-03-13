@@ -46,7 +46,8 @@
 #include <timer.h>
 
 /** Linked list of ALL devices */
-struct device *all_devices = &dev_root; // 在生成的static.c文件中定义
+// dev_root是编译时生成的设备树结构体,在static.c
+struct device *all_devices = &dev_root;
 /** Pointer to the last device */
 extern struct device *last_dev;
 /** Linked list of free resources */
@@ -918,14 +919,14 @@ static void scan_bus(struct device *busdev)
 	if (!busdev->enabled)
 		return;
 
-	printk(BIOS_SPEW, "%s scanning...\n", dev_path(busdev));
+	printk(BIOS_SPEW, "\"%s\" scanning...\n", dev_path(busdev));
 
 	post_log_path(busdev);
 
 	do_scan_bus = 1;
 	while (do_scan_bus) {
 		struct bus *link;
-		busdev->ops->scan_bus(busdev);
+		busdev->ops->scan_bus(busdev); // 调用pci_domain_scan_bus
 		do_scan_bus = 0;
 		for (link = busdev->link_list; link; link = link->next) {
 			if (link->reset_needed) {
@@ -987,7 +988,8 @@ void dev_enumerate(void)
 	printk(BIOS_SPEW, "Compare with tree...\n");
 	show_devs_tree(root, BIOS_SPEW, 0, 0);
 
-    // 使能设备
+	ll_printk("Enable device...\n");
+	// 在enable_dev函数中赋值scan_bus的 比如baytrail和qemu i440fx
 	if (root->chip_ops && root->chip_ops->enable_dev)
 		root->chip_ops->enable_dev(root);
 
@@ -995,7 +997,8 @@ void dev_enumerate(void)
 		printk(BIOS_ERR, "dev_root missing scan_bus operation");
 		return;
 	}
-    // 从root总线开始扫描
+	// 扫描总线 从root开始
+	ll_printk("Start scan bus...\n");
 	scan_bus(root);
 	post_log_clear();
 	printk(BIOS_INFO, "done\n");

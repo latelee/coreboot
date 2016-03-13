@@ -229,7 +229,7 @@ static struct device_operations pci_domain_ops = {
 	.set_resources		= cpu_pci_domain_set_resources,
 	.enable_resources	= NULL,
 	.init			= NULL,
-	.scan_bus		= pci_domain_scan_bus,
+	.scan_bus		= pci_domain_scan_bus, // 扫描总线
 	.ops_pci_bus	= pci_bus_default_ops,
 #if CONFIG_GENERATE_SMBIOS_TABLES
 	.get_smbios_data	= qemu_get_smbios_data,
@@ -271,6 +271,7 @@ static struct device_operations cpu_bus_ops = {
 	.scan_bus         = cpu_bus_scan,
 };
 
+// 在此处赋值pci和cpu总线操作函数
 static void northbridge_enable(struct device *dev)
 {
     ll_printk("in %s()...\n", __func__);

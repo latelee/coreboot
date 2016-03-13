@@ -1274,6 +1274,8 @@ void pci_scan_bridge(struct device *dev)
  *
  * @param dev Pointer to the domain.
  */
+// 多个平台的pci扫描使用此函数，将此函数赋值给pci_domain_ops的scan_bus
+// 是默认的pci总线扫描函数
 void pci_domain_scan_bus(device_t dev)
 {
     ll_printk("in %s()...\n", __func__);

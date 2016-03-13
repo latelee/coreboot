@@ -26,15 +26,17 @@ static void pci_domain_set_resources(device_t dev)
 	assign_resources(dev->link_list);
 }
 
+// PCI
 static struct device_operations pci_domain_ops = {
 	.read_resources   = pci_domain_read_resources,
 	.set_resources    = pci_domain_set_resources,
 	.enable_resources = NULL,
 	.init             = NULL,
-	.scan_bus         = pci_domain_scan_bus,
+	.scan_bus         = pci_domain_scan_bus, // PCI扫描 在pci_device.c中实现
 	.ops_pci_bus      = pci_bus_default_ops,
 };
 
+// 芯片级别操作函数
 static struct device_operations cpu_bus_ops = {
 	.read_resources   = DEVICE_NOOP,
 	.set_resources    = DEVICE_NOOP,
@@ -51,7 +53,7 @@ static void enable_dev(device_t dev)
 
 	/* Set the operations if it is a special bus type */
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {
-		dev->ops = &pci_domain_ops;
+		dev->ops = &pci_domain_ops; // PCI
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
 		dev->ops = &cpu_bus_ops; // 总线操作
 	} else if (dev->path.type == DEVICE_PATH_PCI) {
