@@ -22,11 +22,15 @@ CONFIG_FMDFILE:=$(call strip_quotes,$(CONFIG_FMDFILE))
 
 #######################################################################
 # misleadingly named, this is the coreboot version
+ifeq ($(BUILD_TIMELESS),1)
+export KERNELVERSION := TIMELESS
+else
 export KERNELVERSION := $(strip $(if $(GIT),\
 	$(shell git describe --dirty --always || git describe),\
 	$(if $(wildcard $(top)/.coreboot-version),\
 		$(shell cat $(top)/.coreboot-version),\
 		coreboot-unknown$(KERNELREVISION))))
+endif
 
 #######################################################################
 # Basic component discovery
@@ -327,7 +331,7 @@ CPPFLAGS_common += -I3rdparty
 CFLAGS_common += -pipe -g -nostdinc
 CFLAGS_common += -nostdlib -Wall -Wundef -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS_common += -Wwrite-strings -Wredundant-decls -Wno-trigraphs
-CFLAGS_common += -Wstrict-aliasing -Wshadow
+CFLAGS_common += -Wstrict-aliasing -Wshadow -Wdate-time
 CFLAGS_common += -fno-common -ffreestanding -fno-builtin -fomit-frame-pointer
 CFLAGS_common += -ffunction-sections -fdata-sections
 
@@ -445,7 +449,7 @@ $(objgenerated)/libverstage.a: $$(libverstage-objs)
 clean-abuild:
 	rm -rf coreboot-builds
 
-clean-for-update-target:
+clean-for-update-target: clean-payloads
 	rm -f $(obj)/ramstage?* $(obj)/coreboot.romstage $(obj)/coreboot.pre* $(obj)/coreboot.bootblock $(obj)/coreboot.a
 	rm -rf $(obj)/bootblock?* $(obj)/romstage?* $(obj)/location.*
 	rm -f $(obj)/option_table.* $(obj)/crt0.S $(obj)/ldscript
@@ -454,8 +458,6 @@ clean-for-update-target:
 	rm -f $(obj)/mainboard/$(MAINBOARDDIR)/romstage.inc
 	rm -f $(obj)/mainboard/$(MAINBOARDDIR)/bootblock.* $(obj)/dsdt.*
 	rm -f $(obj)/cpu/x86/smm/smm_bin.c $(obj)/cpu/x86/smm/smm.* $(obj)/cpu/x86/smm/smm
-	$(MAKE) -C payloads/external/SeaBIOS -f Makefile.inc clean
-	$(MAKE) -C payloads/external/U-Boot -f Makefile.inc clean
 
 clean-target:
 	rm -f $(obj)/coreboot*
@@ -843,6 +845,52 @@ board_id-type := raw
 
 $(obj)/board_id:
 	printf $(CONFIG_BOARD_ID_STRING) > $@
+
+# Ensure that no payload segment overlaps with memory regions used by ramstage
+# (not for x86 since it can relocate itself in that case)
+ifneq ($(CONFIG_ARCH_X86),y)
+check-ramstage-overlap-regions := ramstage
+check-ramstage-overlap-files :=
+ifneq ($(CONFIG_PAYLOAD_NONE),y)
+check-ramstage-overlap-files += $(CONFIG_CBFS_PREFIX)/payload
+endif
+
+# will output one or more lines of "<load address in hex> <memlen in decimal>"
+cbfs-get-segments-cmd = $(CBFSTOOL) $(obj)/coreboot.pre print -v | sed -n \
+	'\%$(1)%,\%^[^ ]\{4\}%s%    .*load: \(0x[0-9a-fA-F]*\),.*length: [0-9]*/\([0-9]*\).*%\1 \2%p'
+
+ramstage-symbol-addr-cmd = $(OBJDUMP_ramstage) -t $(objcbfs)/ramstage.elf | \
+	sed -n '/ $(1)$$/s/^\([0-9a-fA-F]*\) .*/0x\1/p'
+
+check-ramstage-overlaps: $(obj)/coreboot.pre
+	programs=$$($(foreach file,$(check-ramstage-overlap-files), \
+		$(call cbfs-get-segments-cmd,$(file)) ; )) ; \
+	regions=$$($(foreach region,$(check-ramstage-overlap-regions), \
+		echo $(region) ; \
+		$(call ramstage-symbol-addr-cmd,_$(region)) ; \
+		$(call ramstage-symbol-addr-cmd,_e$(region)) ; )) ; \
+	pstart= ; pend= ; \
+	for x in $$programs; do \
+	    if [ -z $$pstart ]; then pstart=$$(($$x)) ; continue ; fi ; \
+	    pend=$$(($$pstart + $$x)) ; \
+	    rname= ; rstart= ; rend= ; \
+	    for y in $$regions ; do \
+	        if [ -z $$rname ]; then rname=$$y ; continue ; fi ; \
+	        if [ -z $$rstart ]; then rstart=$$(($$y)) ; continue ; fi ; \
+	        rend=$$(($$y)) ; \
+	        if [ $$pstart -lt $$rend -a $$rstart -lt $$pend ]; then \
+	            echo "ERROR: Ramstage region _$$rname overlapped by:" \
+	                 $(check-ramstage-overlap-files) ; \
+	            exit 1 ; \
+	        fi ; \
+	        rname= ; rstart= ; rend= ; \
+	    done ; \
+	    pstart= ; pend= ; \
+	done
+
+INTERMEDIATE+=check-ramstage-overlaps
+PHONY+=check-ramstage-overlaps
+endif
 
 junit.xml:
 	echo "Building $(UTIL)"

@@ -35,6 +35,7 @@ config CPU_SPECIFIC_OPTIONS
 	select TSC_CONSTANT_RATE
 	select UDELAY_TSC
 	select TSC_CONSTANT_RATE
+	select PLATFORM_USES_FSP2_0
 
 config MMCONF_BASE_ADDRESS
 	hex "PCI MMIO Base Address"
@@ -84,5 +85,23 @@ config SOC_UART_DEBUG
 config C_ENV_BOOTBLOCK_SIZE
 	hex
 	default 0x8000
+
+# This SoC does not map SPI flash like many previous SoC. Therefore we provide
+# a custom media driver that facilitates mapping
+config X86_TOP4G_BOOTMEDIA_MAP
+	bool
+	default n
+
+config ROMSTAGE_ADDR
+	hex
+	default 0xfef2e000
+	help
+	  The base address (in CAR) where romstage should be linked
+
+config FSPM_STACK_SIZE
+	hex
+	default 0x40000
+	help
+	  The amount of CAR memory FSPM needs. Recommended at least 256KiB
 
 endif

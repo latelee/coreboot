@@ -68,7 +68,7 @@ void dev_initialize_chips(void)
 				!dev->chip_ops->initialized) {
 			ll_printk("in %s()\n", __func__);
 			post_log_path(dev);
-			dev->chip_ops->init(dev->chip_info);
+			dev->chip_ops->init(dev->chip_info); // 调用chip_operations的init函数
 			dev->chip_ops->initialized = 1;
 		}
 	}

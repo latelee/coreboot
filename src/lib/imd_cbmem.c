@@ -263,13 +263,20 @@ void *cbmem_entry_start(const struct cbmem_entry *entry)
 	return imd_entry_at(imd, cbmem_to_imd(entry));
 }
 
+void cbmem_region_used(uintptr_t *base, size_t *size)
+{
+	void *baseptr;
+	imd_region_used(cbmem_get_imd(), &baseptr, size);
+	*base = (uintptr_t)baseptr;
+}
+
 void cbmem_add_bootmem(void)
 {
-	void *base = NULL;
+	uintptr_t base = 0;
 	size_t size = 0;
 
-	imd_region_used(cbmem_get_imd(), &base, &size);
-	bootmem_add_range((uintptr_t)base, size, LB_MEM_TABLE);
+	cbmem_region_used(&base, &size);
+	bootmem_add_range(base, size, LB_MEM_TABLE);
 }
 
 #if ENV_RAMSTAGE

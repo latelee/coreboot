@@ -53,7 +53,7 @@ static void enable_dev(device_t dev)
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {
 		dev->ops = &pci_domain_ops;
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
-		dev->ops = &cpu_bus_ops; // 总结操作
+		dev->ops = &cpu_bus_ops; // 总线操作
 	} else if (dev->path.type == DEVICE_PATH_PCI) {
 		/* Handle south cluster enablement. */
 		if (PCI_SLOT(dev->path.pci.devfn) > GFX_DEV &&
@@ -64,7 +64,7 @@ static void enable_dev(device_t dev)
 }
 
 /* Called at BS_DEV_INIT_CHIPS time -- very early. Just after BS_PRE_DEVICE. */
-/* 在哪里调用此函数？ */
+// 芯片级初始化，在BS_DEV_INIT_CHIPS阶段调用到，参见hardwaremain.c
 static void soc_init(void *chip_info)
 {
 	baytrail_init_pre_device(); // ramstage.c中定义
