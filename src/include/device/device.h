@@ -135,6 +135,8 @@ struct device {
 	ROMSTAGE_CONST struct bus *link_list;
 
 	struct device_operations *ops;
+
+    // 似乎表明只有romstage才会有定义
 #ifndef __PRE_RAM__
 	struct chip_operations *chip_ops;
 	const char *name;

@@ -1,6 +1,6 @@
 -------------------------------------------------------------------------------
 Late Lee readme
-coreboot 4.3 from http://coreboot.org/releases/
+coreboot master repository from https://github.com/coreboot/coreboot
 
 ----------------------------------------
 
@@ -44,7 +44,8 @@ Payload  --->
 3、编译：
 $ make
 
-在此过程，会下载用户选择的payload，然后一起编译。
+在此过程，会clone 3rdparty目录仓库，另外会下载用户选择的payload，然后一起编译。
+注；编译需要使用vboot，如不想在make时clone，也可以解压vboot.tar.bz2
 
 最终生成：
 build/coreboot.rom
@@ -67,6 +68,13 @@ $ qemu-system-i386 -nographic -bios coreboot/build/coreboot.rom
 
 注：由于没有系统，启动后即“死机”，需要关闭终端才可退出。
 
+使用系统仅启动BIOS的命令如下：
+$ qemu-system-i386 -nographic -bios coreboot/build/coreboot.rom -hda disk.img
+
+注：disk.img必须是可启动的磁盘镜像
+
+end Late Lee readme
+======================================================================================
 
 -------------------------------------------------------------------------------
 coreboot README

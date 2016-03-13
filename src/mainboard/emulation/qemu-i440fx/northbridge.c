@@ -273,6 +273,8 @@ static struct device_operations cpu_bus_ops = {
 
 static void northbridge_enable(struct device *dev)
 {
+    ll_printk("in %s()...\n", __func__);
+
 	/* Set the operations if it is a special bus type */
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {
 		dev->ops = &pci_domain_ops;
@@ -282,6 +284,7 @@ static void northbridge_enable(struct device *dev)
 	}
 }
 
+// 这里的结构体也会被调用到
 struct chip_operations mainboard_emulation_qemu_i440fx_ops = {
 	CHIP_NAME("QEMU Northbridge i440fx")
 	.enable_dev = northbridge_enable,

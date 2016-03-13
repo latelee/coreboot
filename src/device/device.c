@@ -46,7 +46,7 @@
 #include <timer.h>
 
 /** Linked list of ALL devices */
-struct device *all_devices = &dev_root;
+struct device *all_devices = &dev_root; // 在生成的static.c文件中定义
 /** Pointer to the last device */
 extern struct device *last_dev;
 /** Linked list of free resources */
@@ -62,12 +62,11 @@ void dev_initialize_chips(void)
 {
 	struct device *dev;
 
-    ll_printk("in %s()\n", __func__);
-
 	for (dev = all_devices; dev; dev = dev->next) {
 		/* Initialize chip if we haven't yet. */
 		if (dev->chip_ops && dev->chip_ops->init &&
 				!dev->chip_ops->initialized) {
+			ll_printk("in %s()\n", __func__);
 			post_log_path(dev);
 			dev->chip_ops->init(dev->chip_info);
 			dev->chip_ops->initialized = 1;
@@ -988,6 +987,7 @@ void dev_enumerate(void)
 	printk(BIOS_SPEW, "Compare with tree...\n");
 	show_devs_tree(root, BIOS_SPEW, 0, 0);
 
+    // 使能设备
 	if (root->chip_ops && root->chip_ops->enable_dev)
 		root->chip_ops->enable_dev(root);
 
@@ -995,6 +995,7 @@ void dev_enumerate(void)
 		printk(BIOS_ERR, "dev_root missing scan_bus operation");
 		return;
 	}
+    // 从root总线开始扫描
 	scan_bus(root);
 	post_log_clear();
 	printk(BIOS_INFO, "done\n");

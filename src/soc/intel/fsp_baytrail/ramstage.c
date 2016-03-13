@@ -159,5 +159,5 @@ void baytrail_init_pre_device(void)
 
 	/* Get GPIO initial states from mainboard */
 	config = mainboard_get_gpios(); // 弱链接，返回NULL
-	setup_soc_gpios(config); // 实际不设置gpio...
+	setup_soc_gpios(config); // 传递NULL，所以实际不设置gpio...
 }

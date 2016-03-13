@@ -1276,6 +1276,7 @@ void pci_scan_bridge(struct device *dev)
  */
 void pci_domain_scan_bus(device_t dev)
 {
+    ll_printk("in %s()...\n", __func__);
 	struct bus *link = dev->link_list;
 	pci_scan_bus(link, PCI_DEVFN(0, 0), 0xff);
 }

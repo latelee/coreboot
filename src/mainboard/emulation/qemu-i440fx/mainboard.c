@@ -20,6 +20,7 @@
 #include <device/pci_ops.h>
 #include <pc80/keyboard.h>
 #include <arch/io.h>
+#include <console/console.h>
 
 static const unsigned char qemu_i440fx_irqs[] = {
 	11, 10, 10, 11,
@@ -58,4 +59,25 @@ static const struct pci_driver nb_driver __pci_driver = {
 	.ops = &nb_operations,
 	.vendor = 0x8086,
 	.device = 0x1237,
+};
+
+//////////////////////
+// 下面是chip_operations的测试，主要是演示在枚举设备前的芯片级别的初始化
+// 在util/sconfig(coreboot设备树编译器工具)中生成static.c文件，将chip_operations赋值，如果不定义，则使用弱链接
+
+static void mainboard_i440fx_enable(device_t dev)
+{
+    ll_printk("in %s()...\n", __func__);
+}
+
+static void mainboard_i440fx_chip_init(void *chip_info)
+{
+    ll_printk("in %s()...\n", __func__);
+}
+
+// 从static.c文件看，这个是root设备
+struct chip_operations mainboard_ops = {
+	CHIP_NAME("Late Lee qemu i440fx soc")
+	.enable_dev = mainboard_i440fx_enable,
+	.init = mainboard_i440fx_chip_init, // 在dev_initialize_chips函数中调用
 };
