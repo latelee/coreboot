@@ -331,7 +331,7 @@ CPPFLAGS_common += -I3rdparty
 CFLAGS_common += -pipe -g -nostdinc
 CFLAGS_common += -nostdlib -Wall -Wundef -Wstrict-prototypes -Wmissing-prototypes
 CFLAGS_common += -Wwrite-strings -Wredundant-decls -Wno-trigraphs
-CFLAGS_common += -Wstrict-aliasing -Wshadow -Wdate-time
+CFLAGS_common += -Wstrict-aliasing -Wshadow #-Wdate-time
 CFLAGS_common += -fno-common -ffreestanding -fno-builtin -fomit-frame-pointer
 CFLAGS_common += -ffunction-sections -fdata-sections
 
