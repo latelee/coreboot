@@ -12,10 +12,19 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#include <arm_tf.h>
+#include <assert.h>
+#include <soc/bl31_plat_params.h>
 
-#include <boot_device.h>
+static struct bl31_plat_param *plat_params;
 
-const struct region_device *boot_device_ro(void)
+void register_bl31_param(struct bl31_plat_param *param)
 {
-	return NULL;
+	param->next = (void *)plat_params;
+	plat_params = param;
+}
+
+void *soc_get_bl31_plat_params(bl31_params_t *bl31_params)
+{
+	return (void *)plat_params;
 }

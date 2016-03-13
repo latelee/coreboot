@@ -14,3 +14,4 @@
 ##
 
 subdirs-$(CONFIG_DRIVER_PARADE_PS8625) += ps8625/
+subdirs-$(CONFIG_DRIVER_PARADE_PS8640) += ps8640/

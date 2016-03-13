@@ -1,5 +1,6 @@
 TAG-$(CONFIG_SEABIOS_MASTER)=origin/master
 TAG-$(CONFIG_SEABIOS_STABLE)=b3ef39f532db52bf17457ba931da758eeb38d6b4
+TAG-$(CONFIG_SEABIOS_REVISION)=$(CONFIG_SEABIOS_REVISION_ID)
 
 unexport KCONFIG_AUTOHEADER
 unexport KCONFIG_AUTOCONFIG
@@ -15,8 +16,18 @@ seabios:
 	git clone http://review.coreboot.org/p/seabios.git seabios
 
 fetch: seabios
-	cd seabios; git show $(TAG-y) >/dev/null 2>&1 ;	if [ $$? -ne 0 ]; \
-	then echo "    Fetching new commits from the SeaBIOS git repo"; git fetch; fi
+ifeq ($(TAG-y),)
+	echo "Error: The specified tag is invalid"
+ifeq ($(CONFIG_SEABIOS_REVISION),y)
+	echo "Error: There is no revision specified for SeaBIOS"
+	false
+endif
+	false
+endif
+	cd seabios; git show $(TAG-y) >/dev/null 2>&1 ;	if [ $$? -ne 0 ] || \
+		[ "$(TAG-y)" = "origin/master" ]; then \
+		echo "    Fetching new commits from the SeaBIOS git repo"; \
+		git fetch; fi
 
 checkout: fetch
 	echo "    Checking out SeaBIOS revision $(TAG-y)"

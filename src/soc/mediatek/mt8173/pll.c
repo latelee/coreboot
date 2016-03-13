@@ -467,8 +467,6 @@ void mt_pll_post_init(void)
 	clrbits_le32(&mt8173_infracfg->top_ckdiv1, 0x3ff);
 
 	/* select ARMPLL */
-	/* TODO: possibly raise ARMPLL frequency here */
-	/* NOTICE: raise Vproc voltage before raise ARMPLL frequency */
 	write32(&mt8173_infracfg->top_ckmuxsel, (1 << 2) | 1);
 }
 
@@ -504,4 +502,34 @@ void mt_pll_set_aud_div(u32 rate)
 		clrsetbits_le32(&mt8173_topckgen->clk_auddiv_0, 0xf << 28,
 				7 << 28);
 	}
+}
+
+void mt_pll_raise_ca53_freq(u32 freq) {
+	pll_set_rate(&plls[APMIXED_ARMCA7PLL], freq); /* freq in Hz */
+}
+
+void mt_mem_pll_config_pre(const struct mt8173_sdram_params *sdram_params)
+{
+	u32 mpll_sdm_pcw_20_0 = 0xF13B1;
+
+	/* disable MPLL for adjusting memory clk frequency */
+	clrbits_le32(&mt8173_apmixed->mpll_con0, BIT(0));
+	/* MPLL configuration: mode selection */
+	setbits_le32(&mt8173_apmixed->mpll_con0, BIT(16));
+	clrbits_le32(&mt8173_apmixed->mpll_con0, 0x7 << 4);
+	clrbits_le32(&mt8173_apmixed->pll_test_con0, 1 << 31);
+	/* set RG_MPLL_SDM_PCW for feedback divide ratio */
+	clrsetbits_le32(&mt8173_apmixed->mpll_con1, 0x1fffff, mpll_sdm_pcw_20_0);
+}
+
+void mt_mem_pll_config_post(void)
+{
+	/* power up sequence starts: enable MPLL */
+	setbits_le32(&mt8173_apmixed->mpll_con0, BIT(0));
+}
+
+void mt_mem_pll_mux(void)
+{
+	/* CLK_CFG_0 */
+	mux_set_sel(&muxes[TOP_MEM_SEL], 1); /* 1: dmpll_ck */
 }

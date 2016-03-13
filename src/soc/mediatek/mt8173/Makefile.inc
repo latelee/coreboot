@@ -16,7 +16,8 @@
 ifeq ($(CONFIG_SOC_MEDIATEK_MT8173),y)
 
 bootblock-y += bootblock.c
-bootblock-y += cbfs.c
+bootblock-$(CONFIG_SPI_FLASH) += flash_controller.c
+bootblock-y += i2c.c
 bootblock-y += pll.c
 bootblock-y += spi.c
 bootblock-y += timer.c
@@ -38,11 +39,12 @@ verstage-$(CONFIG_DRIVERS_UART) += uart.c
 
 verstage-y += timer.c
 verstage-y += wdt.c
-verstage-y += cbfs.c
+verstage-$(CONFIG_SPI_FLASH) += flash_controller.c
 
 ################################################################################
 
-romstage-y += cbfs.c
+romstage-$(CONFIG_SPI_FLASH) += flash_controller.c
+romstage-y += pll.c
 romstage-y += timer.c
 
 romstage-$(CONFIG_DRIVERS_UART) += uart.c
@@ -50,23 +52,31 @@ romstage-y += cbmem.c
 romstage-y += spi.c
 romstage-y += gpio.c
 romstage-y += pmic_wrap.c mt6391.c
+romstage-y += memory.c
+romstage-y += emi.c dramc_pi_basic_api.c dramc_pi_calibration_api.c
 romstage-y += mmu_operations.c
 romstage-y += rtc.c
 
 ################################################################################
 
-ramstage-y += cbmem.c
+ramstage-y += cbmem.c emi.c
 ramstage-y += spi.c
-ramstage-y += cbfs.c
+ramstage-$(CONFIG_SPI_FLASH) += flash_controller.c
 ramstage-y += soc.c mtcmos.c
 ramstage-y += timer.c
 ramstage-$(CONFIG_DRIVERS_UART) += uart.c
-ramstage-y += pmic_wrap.c mt6391.c
+ramstage-y += pmic_wrap.c mt6391.c i2c.c
 ramstage-y += gpio.c
 ramstage-y += wdt.c
 ramstage-y += pll.c
+ramstage-y += rtc.c
 
 ramstage-y += usb.c
+
+ramstage-$(CONFIG_ARM64_USE_ARM_TRUSTED_FIRMWARE) += bl31_plat_params.c
+
+BL31_MAKEARGS += PLAT=mt8173 MEDIATEK_MEM_CONFIG=SRAM_192K MEDIATEK_DA9212=1 \
+		 MEDIATEK_MT6311=1
 
 ################################################################################
 

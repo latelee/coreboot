@@ -213,13 +213,37 @@ static void handle_category_key(struct coreinfo_cat *cat, int key)
 	}
 }
 
+static void print_no_modules_selected(void)
+{
+	int height = getmaxy(stdscr), i;
+
+	for (i = 0; i < ARRAY_SIZE(categories); i++)
+		if (categories[i].count > 0)
+			return;
+
+	color_set(2, NULL); // White on black
+	center(height / 2, "No modules selected");
+}
+
+static int first_nonempty_category(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(categories); i++)
+		if (categories[i].count > 0)
+			return i;
+	return 0;
+}
+
 static void loop(void)
 {
 	int key;
 
 	center(0, CONFIG_PAYLOAD_INFO_NAME " " CONFIG_PAYLOAD_INFO_VERSION);
+	print_no_modules_selected();
 	refresh();
 
+	curwin = first_nonempty_category();
 	print_menu();
 	print_submenu(&categories[curwin]);
 	redraw_module(&categories[curwin]);

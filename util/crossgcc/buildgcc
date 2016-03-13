@@ -47,6 +47,9 @@ CLANG_VERSION=3.7.1
 MAKE_VERSION=4.1
 
 # GCC toolchain archive locations
+# These are sanitized by the jenkins toolchain test builder, so if
+# a completely new URL is added here, it probably needs to be added
+# to the jenkins build as well, or the builder won't download it.
 GMP_ARCHIVE="http://ftpmirror.gnu.org/gmp/gmp-${GMP_VERSION}.tar.bz2"
 MPFR_ARCHIVE="http://ftpmirror.gnu.org/mpfr/mpfr-${MPFR_VERSION}.tar.bz2"
 MPC_ARCHIVE="http://ftpmirror.gnu.org/mpc/mpc-${MPC_VERSION}.tar.gz"
@@ -340,7 +343,8 @@ myhelp()
 	printf "                                  (defaults to $TARGETARCH)\n"
 	printf "    [-S|--scripting]              build scripting support for GDB\n\n"
 	printf "Platforms for GCC & GDB:\n"
-	printf "    x86_64 i386-elf i386-mingw32 mipsel-elf riscv-elf arm aarch64\n\n"
+	printf "    x86_64 i386-elf i386-mingw32 mipsel-elf riscv-elf arm aarch64\n"
+	printf "    powerpc64le-linux-gnu nds32le-elf\n\n"
 }
 
 printversion() {
@@ -624,6 +628,7 @@ case "$TARGETARCH" in
 	i386*)			TARGETARCH=i386-elf;;
 	arm*)			TARGETARCH=arm-eabi;;
 	aarch64*)		TARGETARCH=aarch64-elf;;
+	nds32le-elf)		;;
 	*)			printf "${red}WARNING: Unsupported architecture $TARGETARCH.${NC}\n\n"; ;;
 esac
 
