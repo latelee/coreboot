@@ -986,6 +986,7 @@ void dev_enumerate(void)
 
 	show_all_devs(BIOS_SPEW, "Before device enumeration.");
 	printk(BIOS_SPEW, "Compare with tree...\n");
+    ll_printk("----------------------------------\n");
 	show_devs_tree(root, BIOS_SPEW, 0, 0);
 
 	ll_printk("Enable device...\n");
@@ -1002,6 +1003,7 @@ void dev_enumerate(void)
 	scan_bus(root);
 	post_log_clear();
 	printk(BIOS_INFO, "done\n");
+
 }
 
 /**
@@ -1027,7 +1029,7 @@ void dev_configure(void)
 
 	printk(BIOS_INFO, "Allocating resources...\n");
 
-	root = &dev_root;
+	root = &dev_root; // 根设备
 
 	/*
 	 * Each domain should create resources which contain the entire address
@@ -1156,14 +1158,20 @@ static void init_link(struct bus *link)
 	struct bus *c_link;
 
 	for (dev = link->children; dev; dev = dev->sibling) {
-		post_code(POST_BS_DEV_INIT);
+        ll_printk("++++++++LL debug %s() int dev.......\n", __func__);
+		post_code(POST_BS_DEV_INIT); // 每次打印0x75，就是设备初始化
 		post_log_path(dev);
-		init_dev(dev);
+		init_dev(dev); // 初始化设备，调用device_operations的init
 	}
 
+    // 这个循环，看得不太明白
+    // 可能是子设备下有总线，再调用init_link
 	for (dev = link->children; dev; dev = dev->sibling) {
 		for (c_link = dev->link_list; c_link; c_link = c_link->next)
+    {      
+    ll_printk("========================LL debug %s() int link))))))))))))\n", __func__);
 			init_link(c_link);
+          }
 	}
 }
 
@@ -1185,12 +1193,17 @@ void dev_initialize(void)
 #endif
 
 	/* First call the mainboard init. */
+    // 先调用mainboard的init -- 注: 如没有定义，则使用弱链接，参考static.c
 	init_dev(&dev_root);
+
 
 	/* Now initialize everything. */
 	for (link = dev_root.link_list; link; link = link->next)
+    {
+        ll_printk("-----LL debug int link.......\n");
 		init_link(link);
-	post_log_clear();
+       }
+    post_log_clear();
 
 	printk(BIOS_INFO, "Devices initialized\n");
 	show_all_devs(BIOS_SPEW, "After init.");

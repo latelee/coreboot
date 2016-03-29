@@ -399,7 +399,7 @@ void stop_this_cpu(void)
 
 /* C entry point of secondary cpus */
 void asmlinkage secondary_cpu_init(unsigned int index)
-{
+{DEBUG_MARK
 	atomic_inc(&active_cpus);
 
 	if (!IS_ENABLED(CONFIG_PARALLEL_CPU_INIT))

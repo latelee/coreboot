@@ -564,6 +564,7 @@ int mp_init(struct bus *cpu_bus, struct mp_params *p)
 	return bsp_do_flight_plan(p); // 调用具体的cpu.c文件的mp_steps结构体函数
 }
 
+// qemu跟踪后，不在此处调用cpu_initialize的
 void mp_initialize_cpu(void *unused)
 {
 	/* Call back into driver infrastructure for the AP initialization.   */

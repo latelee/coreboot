@@ -23,6 +23,7 @@
 #include <device/pci.h>
 #include <reset.h>
 
+// sconfig工具使用到
 const char mainboard_name[] = CONFIG_MAINBOARD_VENDOR " " CONFIG_MAINBOARD_PART_NUMBER;
 
 /**
@@ -49,6 +50,8 @@ static void scan_static_bus(device_t bus)
 	device_t child;
 	struct bus *link;
 
+
+    ll_printk("in scan_static_bus...\n");
 	for (link = bus->link_list; link; link = link->next) {
 		for (child = link->children; child; child = child->sibling) {
 
@@ -116,6 +119,8 @@ static void root_dev_scan_bus(device_t bus)
 {
 	struct bus *link;
 
+    ll_printk("debug in %s()...\n", __func__);
+
 	printk(BIOS_SPEW, "%s for %s\n", __func__, dev_path(bus));
 
 	scan_static_bus(bus);
@@ -132,6 +137,7 @@ static void root_dev_reset(struct bus *bus)
 	hard_reset();
 }
 
+// 默认的根设备操作函数集
 /**
  * Default device operation for root device.
  *

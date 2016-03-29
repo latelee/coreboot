@@ -16,6 +16,7 @@
 #include <device/device.h>
 #include <cpu/x86/lapic.h>
 
+// cpu初始化
 static void qemu_cpu_init(struct device *dev)
 {
 	setup_lapic();
@@ -30,6 +31,7 @@ static struct cpu_device_id cpu_table[] = {
 	{ 0, 0 },
 };
 
+// 在设备初始化时会调用到ops的函数init
 static const struct cpu_driver driver __cpu_driver = {
 	.ops      = &cpu_dev_ops,
 	.id_table = cpu_table,

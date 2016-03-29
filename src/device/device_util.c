@@ -816,6 +816,7 @@ void show_devs_subtree(struct device *root, int debug_level, const char *msg)
 }
 
 // 列出所有设备 -- 编译时在设备树上的
+// dev_path根据设备类型返回字符串
 void show_all_devs(int debug_level, const char *msg)
 {
 	struct device *dev;

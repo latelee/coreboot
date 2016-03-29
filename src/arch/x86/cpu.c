@@ -297,7 +297,7 @@ void cpu_initialize(unsigned int index)
 
 	get_fms(&c, cpu->device); // fms难道是family model stepping的意思?
 
-	/* 打开CPU family、model，例如0x06_0x37表示atom e3000系列(e3800也在其中)，参考IA32手册卷3第35章表格1 */
+	/* 打印CPU family、model，例如0x06_0x37表示atom e3000系列(e3800也在其中)，参考IA32手册卷3第35章表格1 */
 	printk(BIOS_DEBUG, "CPU: family 0x%02x, model 0x%02x, stepping 0x%02x\n",
 		c.x86, c.x86_model, c.x86_mask);
     printk(BIOS_DEBUG, "DisplayFamily_DisplayModel: %02X_%02XH\n", c.x86, c.x86_model);
@@ -305,8 +305,8 @@ void cpu_initialize(unsigned int index)
     msr_t platform_id = rdmsr(0x17);
     printk(BIOS_DEBUG, "platform_id: %x %x\n", platform_id.hi, platform_id.lo);
 
+    // my test...
 	char processor_name[49];
-
 	/* Print processor name */
 	fill_processor_name1(processor_name);
 	// 打印CPU，如qemu会打印:QEMU Virtual CPU version 2.0.0
@@ -328,14 +328,14 @@ void cpu_initialize(unsigned int index)
 
 	/* Initialize the cpu */
 	if (cpu->ops && cpu->ops->init) {
+        ll_printk("here....\n");
 		cpu->enabled = 1;
 		cpu->initialized = 1; // 已经初始化好了
-		cpu->ops->init(cpu); // 调用具体的init函数 如baytrail的为baytrail_core_init
+		cpu->ops->init(cpu); // 调用具体的init函数 如baytrail的为baytrail_init_cpus， qemu为qemu_cpu_init
 	}
 	post_log_clear();
 
 	printk(BIOS_INFO, "CPU #%d initialized\n", index);
-
 	return;
 }
 

@@ -61,6 +61,7 @@ void do_putchar(unsigned char byte);
 
 #define ll_printk(fmt, ...) printk(BIOS_DEBUG, "[LL DEBUG]: " fmt, ##__VA_ARGS__)
 
+#define DEBUG_MARK ll_printk("DEBUG %s() %d...\n", __func__, __LINE__);
 #else
 static inline void console_init(void) {}
 static inline int console_log_level(int msg_level) { return 0; }
@@ -68,6 +69,9 @@ static inline void printk(int LEVEL, const char *fmt, ...) {}
 static inline void do_putchar(unsigned char byte) {}
 
 #define ll_printk(fmt, ...) {}
+
+#define DEBUG_MARK 
+
 
 #endif
 

@@ -263,6 +263,7 @@ static void cpu_bus_scan(device_t bus)
 	}
 }
 
+// cpu初始化、总线扫描在这里定义
 static struct device_operations cpu_bus_ops = {
 	.read_resources   = DEVICE_NOOP,
 	.set_resources    = DEVICE_NOOP,
@@ -274,7 +275,7 @@ static struct device_operations cpu_bus_ops = {
 // 在此处赋值pci和cpu总线操作函数
 static void northbridge_enable(struct device *dev)
 {
-    ll_printk("in %s()...\n", __func__);
+    ll_printk("in %s() dev type: %d...\n", __func__, dev->path.type);
 
 	/* Set the operations if it is a special bus type */
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {

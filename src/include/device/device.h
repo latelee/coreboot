@@ -70,6 +70,8 @@ struct device_operations {
  * Standard device operations function pointers shims.
  */
 static inline void device_noop(struct device *dev) {}
+//static inline void device_noop(struct device *dev) { ll_printk("debug in %s()...\n", __func__);}
+
 #define DEVICE_NOOP device_noop
 
 #endif /* ! __SIMPLE_DEVICE__ */
