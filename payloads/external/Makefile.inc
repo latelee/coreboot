@@ -25,6 +25,10 @@ ifeq ($(CONFIG_PAYLOAD_FILO),y)
 PAYLOAD_CONFIG=payloads/external/FILO/filo/.config
 PAYLOAD_VERSION=payloads/external/FILO/filo/build/version.h
 endif
+ifeq ($(CONFIG_PAYLOAD_DEPTHCHARGE),y)
+PAYLOAD_CONFIG=payloads/external/depthcharge/depthcharge/.config
+#TODO: Figure out version
+endif
 
 cbfs-files-$(CONFIG_INCLUDE_CONFIG_FILE) += payload_config
 payload_config-file := $(PAYLOAD_CONFIG)
@@ -36,7 +40,7 @@ payload_revision-type := raw
 
 SEABIOS_CC_OFFSET=$(if $(filter %ccache,$(HOSTCC)),2,1)
 payloads/external/SeaBIOS/seabios/out/bios.bin.elf seabios: $(top)/$(DOTCONFIG)
-	$(MAKE) -C payloads/external/SeaBIOS -f Makefile.inc \
+	$(MAKE) -C payloads/external/SeaBIOS \
 			HOSTCC="$(HOSTCC)" \
 			CC=$(word $(SEABIOS_CC_OFFSET),$(CC_x86_32)) \
 			CFLAGS="$(patsubst $(word $(SEABIOS_CC_OFFSET),$(CC_x86_32))%,,$(wordlist $(SEABIOS_CC_OFFSET),9999,$(CC_x86_32)))" \
@@ -59,8 +63,13 @@ payloads/external/SeaBIOS/seabios/out/vgabios.bin: seabios
 payloads/external/SeaBIOS/seabios/.config: payloads/external/SeaBIOS/seabios/out/bios.bin.elf
 payloads/external/SeaBIOS/seabios/out/autoversion.h: payloads/external/SeaBIOS/seabios/out/bios.bin.elf
 
+payloads/external/depthcharge/depthcharge/build/depthcharge.elf depthcharge: $(top)/$(DOTCONFIG) $(CBFSTOOL)
+	$(MAKE) -C payloads/external/depthcharge \
+		BOARD=$(call ws_to_under,$(call strip_quotes,$(call tolower,$(CONFIG_MAINBOARD_PART_NUMBER)))) \
+		MFLAGS= MAKEFLAGS=
+
 filo:
-	$(MAKE) -C payloads/external/FILO -f Makefile.inc \
+	$(MAKE) -C payloads/external/FILO \
 			HOSTCC="$(HOSTCC)" \
 			CC="$(CC_x86_32)" LD="$(LD_x86_32)" OBJDUMP="$(OBJDUMP_x86_32)" \
 			OBJCOPY="$(OBJCOPY_x86_32)" STRIP="$(STRIP_x86_32)" \
@@ -72,7 +81,7 @@ payloads/external/FILO/filo/.config: filo
 payloads/external/FILO/filo/build/version.h: filo
 
 grub2:
-	$(MAKE) -C payloads/external/GRUB2 -f Makefile.inc \
+	$(MAKE) -C payloads/external/GRUB2 \
 			HOSTCC="$(HOSTCC)" \
 			CC="$(CC_x86_32)" LD="$(LD_x86_32)" OBJDUMP="$(OBJDUMP_x86_32)" \
 			OBJCOPY="$(OBJCOPY_x86_32)" STRIP="$(STRIP_x86_32)" \
@@ -81,7 +90,7 @@ grub2:
 payloads/external/GRUB2/grub2/build/default_payload.elf: grub2
 
 payloads/external/U-Boot/u-boot/u-boot-dtb.bin u-boot: $(top)/$(DOTCONFIG)
-	$(MAKE) -C payloads/external/U-Boot -f Makefile.inc \
+	$(MAKE) -C payloads/external/U-Boot \
 			CONFIG_UBOOT_MASTER=$(CONFIG_UBOOT_MASTER) \
 			CONFIG_UBOOT_STABLE=$(CONFIG_UBOOT_STABLE)
 
@@ -96,7 +105,7 @@ ifeq ($(CONFIG_CONSOLE_SERIAL)$(CONFIG_DRIVERS_UART_8250IO),yy)
 endif
 
 payloads/external/Memtest86Plus/memtest86plus/memtest: $(top)/$(DOTCONFIG)
-	$(MAKE) -C payloads/external/Memtest86Plus -f Makefile.inc all \
+	$(MAKE) -C payloads/external/Memtest86Plus all \
 		CC="$(CC_x86_32)" \
 		LD="$(LD_x86_32)" \
 		OBJCOPY="$(OBJCOPY_x86_32)" \

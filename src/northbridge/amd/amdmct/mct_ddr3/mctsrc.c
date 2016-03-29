@@ -998,7 +998,7 @@ static void dqsTrainRcvrEn_SW_Fam10(struct MCTStatStruc *pMCTstat,
 		printk(BIOS_DEBUG, "TrainRcvrEn: CH_MaxRdLat:\n");
 		for(ChannelDTD = 0; ChannelDTD<2; ChannelDTD++) {
 			printk(BIOS_DEBUG, "Channel:%x: %x\n",
-			       ChannelDTD, pDCTstat->CH_MaxRdLat[ChannelDTD]);
+			       ChannelDTD, pDCTstat->CH_MaxRdLat[ChannelDTD][0]);
 		}
 	}
 #endif
@@ -1205,6 +1205,9 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 	uint8_t package_type = mctGet_NVbits(NV_PACK_TYPE);
 	uint16_t fam15h_freq_tab[] = {0, 0, 0, 0, 333, 0, 400, 0, 0, 0, 533, 0, 0, 0, 667, 0, 0, 0, 800, 0, 0, 0, 933};
 
+	uint8_t lane_count;
+	lane_count = get_available_lane_count(pMCTstat, pDCTstat);
+
 	print_debug_dqs("\nTrainRcvEn: Node", pDCTstat->Node_ID, 0);
 	print_debug_dqs("TrainRcvEn: Pass", Pass, 0);
 
@@ -1323,7 +1326,7 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 						initial_seed = (uint16_t) (((((uint64_t) initial_seed) *
 							fam15h_freq_tab[mem_clk] * 100) / (min_mem_clk * 100)));
 
-						for (lane = 0; lane < MAX_BYTE_LANES; lane++) {
+						for (lane = 0; lane < lane_count; lane++) {
 							uint16_t wl_pass1_delay;
 							wl_pass1_delay = current_total_delay[lane];
 
@@ -1349,13 +1352,13 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 							register_delay = 0x0;
 						}
 
-						for (lane = 0; lane < MAX_BYTE_LANES; lane++) {
+						for (lane = 0; lane < lane_count; lane++) {
 							seed_prescaling = current_total_delay[lane] - register_delay - 0x20;
 							seed[lane] = (uint16_t) (register_delay + ((((uint64_t) seed_prescaling) * fam15h_freq_tab[mem_clk] * 100) / (min_mem_clk * 100)));
 						}
 					}
 
-					for (lane = 0; lane < MAX_BYTE_LANES; lane++) {
+					for (lane = 0; lane < lane_count; lane++) {
 						seed_gross[lane] = (seed[lane] >> 5) & 0x1f;
 						seed_fine[lane] = seed[lane] & 0x1f;
 
@@ -1413,7 +1416,7 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 					/* 2.10.5.8.2 (7)
 					 * Calculate and program the DQS Receiver Enable delay values
 					 */
-					for (lane = 0; lane < MAX_BYTE_LANES; lane++) {
+					for (lane = 0; lane < lane_count; lane++) {
 						current_total_delay[lane] = (phase_recovery_delays[lane] & 0x1f);
 						current_total_delay[lane] |= ((seed_gross[lane] + ((phase_recovery_delays[lane] >> 5) & 0x1f) - seed_pre_gross[lane] + 1) << 5);
 						if (nibble == 0) {
@@ -1450,7 +1453,7 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 					 * Compute the average delay across both ranks and program the result into
 					 * the DQS Receiver Enable delay registers
 					 */
-					for (lane = 0; lane < MAX_BYTE_LANES; lane++) {
+					for (lane = 0; lane < lane_count; lane++) {
 						current_total_delay[lane] = (rank0_current_total_delay[lane] + current_total_delay[lane]) / 2;
 						if (lane == 8)
 							pDCTstat->CH_D_BC_RCVRDLY[Channel][dimm] = current_total_delay[lane];
@@ -1498,7 +1501,7 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 		printk(BIOS_DEBUG, "TrainRcvrEn: CH_MaxRdLat:\n");
 		for(ChannelDTD = 0; ChannelDTD<2; ChannelDTD++) {
 			printk(BIOS_DEBUG, "Channel:%x: %x\n",
-			       ChannelDTD, pDCTstat->CH_MaxRdLat[ChannelDTD]);
+			       ChannelDTD, pDCTstat->CH_MaxRdLat[ChannelDTD][0]);
 		}
 	}
 #endif
@@ -1533,7 +1536,7 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 }
 
 static void write_max_read_latency_to_registers(struct MCTStatStruc *pMCTstat,
-				struct DCTStatStruc *pDCTstat, uint8_t dct, uint16_t latency)
+				struct DCTStatStruc *pDCTstat, uint8_t dct, uint16_t *latency)
 {
 	uint32_t dword;
 	uint8_t nb_pstate;
@@ -1541,7 +1544,7 @@ static void write_max_read_latency_to_registers(struct MCTStatStruc *pMCTstat,
 	for (nb_pstate = 0; nb_pstate < 2; nb_pstate++) {
 		dword = Get_NB32_DCT_NBPstate(pDCTstat->dev_dct, dct, nb_pstate, 0x210);
 		dword &= ~(0x3ff << 22);
-		dword |= ((latency & 0x3ff) << 22);
+		dword |= ((latency[nb_pstate] & 0x3ff) << 22);
 		Set_NB32_DCT_NBPstate(pDCTstat->dev_dct, dct, nb_pstate, 0x210, dword);
 	}
 }
@@ -1555,7 +1558,6 @@ static void dqsTrainMaxRdLatency_SW_Fam15(struct MCTStatStruc *pMCTstat,
 				struct DCTStatStruc *pDCTstat)
 {
 	u8 Channel;
-	u8 Addl_Index = 0;
 	u8 Receiver;
 	u8 _DisableDramECC = 0, _Wrap32Dis = 0, _SSE2 = 0;
 	u32 Errors;
@@ -1577,6 +1579,9 @@ static void dqsTrainMaxRdLatency_SW_Fam15(struct MCTStatStruc *pMCTstat,
 	uint16_t current_rdqs_total_delay[MAX_BYTE_LANES];
 	uint8_t current_worst_case_total_delay_dimm;
 	uint16_t current_worst_case_total_delay_value;
+
+	uint8_t lane_count;
+	lane_count = get_available_lane_count(pMCTstat, pDCTstat);
 
 	uint16_t fam15h_freq_tab[] = {0, 0, 0, 0, 333, 0, 400, 0, 0, 0, 533, 0, 0, 0, 667, 0, 0, 0, 800, 0, 0, 0, 933};
 
@@ -1629,10 +1634,9 @@ static void dqsTrainMaxRdLatency_SW_Fam15(struct MCTStatStruc *pMCTstat,
 		 * This is essentially looping over each DIMM.
 		 */
 		for (; Receiver < 8; Receiver += 2) {
-			Addl_Index = (Receiver >> 1) * 3 + 0x10;
 			dimm = (Receiver >> 1);
 
-			print_debug_dqs("\t\tTrainMaxRdLatency52: index ", Addl_Index, 2);
+			print_debug_dqs("\t\tTrainMaxRdLatency52: Receiver ", Receiver, 2);
 
 			if (!mct_RcvrRankEnabled_D(pMCTstat, pDCTstat, Channel, Receiver)) {
 				continue;
@@ -1667,7 +1671,7 @@ static void dqsTrainMaxRdLatency_SW_Fam15(struct MCTStatStruc *pMCTstat,
 		/* 2.10.5.8.5.1.4
 		 * Incrementally test each MaxRdLatency candidate
 		 */
-		for (; pDCTstat->CH_MaxRdLat[Channel] < 0x3ff; pDCTstat->CH_MaxRdLat[Channel]++) {
+		for (; pDCTstat->CH_MaxRdLat[Channel][0] < 0x3ff; pDCTstat->CH_MaxRdLat[Channel][0]++) {
 			write_max_read_latency_to_registers(pMCTstat, pDCTstat, Channel, pDCTstat->CH_MaxRdLat[Channel]);
 			read_dram_dqs_training_pattern_fam15(pMCTstat, pDCTstat, Channel, current_worst_case_total_delay_dimm << 1, 0xff, 0);
 			dword = Get_NB32_DCT(dev, Channel, 0x268) & 0x3ffff;
@@ -1685,8 +1689,8 @@ static void dqsTrainMaxRdLatency_SW_Fam15(struct MCTStatStruc *pMCTstat,
 		dword = Get_NB32(pDCTstat->dev_nbctl, (0x160 + (nb_pstate * 4)));		/* Retrieve NbDid, NbFid */
 		nb_clk = (200 * (((dword >> 1) & 0x1f) + 0x4)) / (((dword >> 7) & 0x1)?2:1);
 
-		pDCTstat->CH_MaxRdLat[Channel]++;
-		pDCTstat->CH_MaxRdLat[Channel] += ((((uint64_t)15 * 100000000000ULL) / ((uint64_t)fam15h_freq_tab[mem_clk] * 1000000ULL))
+		pDCTstat->CH_MaxRdLat[Channel][0]++;
+		pDCTstat->CH_MaxRdLat[Channel][0] += ((((uint64_t)15 * 100000000000ULL) / ((uint64_t)fam15h_freq_tab[mem_clk] * 1000000ULL))
 							 * ((uint64_t)nb_clk * 1000)) / 1000000000ULL;
 
 		write_max_read_latency_to_registers(pMCTstat, pDCTstat, Channel, pDCTstat->CH_MaxRdLat[Channel]);
@@ -1714,7 +1718,7 @@ static void dqsTrainMaxRdLatency_SW_Fam15(struct MCTStatStruc *pMCTstat,
 		printk(BIOS_DEBUG, "TrainMaxRdLatency: CH_MaxRdLat:\n");
 		for(ChannelDTD = 0; ChannelDTD<2; ChannelDTD++) {
 			printk(BIOS_DEBUG, "Channel:%x: %x\n",
-			       ChannelDTD, pDCTstat->CH_MaxRdLat[ChannelDTD]);
+			       ChannelDTD, pDCTstat->CH_MaxRdLat[ChannelDTD][0]);
 		}
 	}
 #endif
@@ -1906,9 +1910,9 @@ static void mct_SetMaxLatency_D(struct DCTStatStruc *pDCTstat, u8 Channel, u16 D
 	 */
 	SubTotal += (cpu_val_n) / 2;
 
-	pDCTstat->CH_MaxRdLat[Channel] = SubTotal;
+	pDCTstat->CH_MaxRdLat[Channel][0] = SubTotal;
 	if(pDCTstat->GangedMode) {
-		pDCTstat->CH_MaxRdLat[1] = SubTotal;
+		pDCTstat->CH_MaxRdLat[1][0] = SubTotal;
 	}
 
 	/* Program the F2x[1, 0]78[MaxRdLatency] register with

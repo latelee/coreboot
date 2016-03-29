@@ -17,22 +17,24 @@ cbfs-files-$(CONFIG_COREINFO_SECONDARY_PAYLOAD) += img/coreinfo
 img/coreinfo-file := payloads/coreinfo/build/coreinfo.elf
 img/coreinfo-type := payload
 
+PAYLOADS_LIST=\
+payloads/coreinfo \
+payloads/libpayload \
+payloads/external/depthcharge \
+payloads/external/SeaBIOS \
+payloads/external/U-Boot \
+payloads/external/Memtest86Plus
+
 payloads/coreinfo/build/coreinfo.elf coreinfo:
 	$(MAKE) -C payloads/coreinfo defaultbuild
 
 clean-payloads:
-	$(MAKE) -C payloads/coreinfo clean
-	$(MAKE) -C payloads/libpayload clean
-	$(MAKE) -C payloads/external/SeaBIOS -f Makefile.inc clean
-	$(MAKE) -C payloads/external/U-Boot -f Makefile.inc clean
-	$(MAKE) -C payloads/external/Memtest86Plus -f Makefile.inc clean
-
+	$(foreach payload, $(PAYLOADS_LIST), $(MAKE) -C $(payload) clean; )
 
 distclean-payloads:
-	$(MAKE) -C payloads/coreinfo distclean
-	$(MAKE) -C payloads/libpayload distclean
-	$(MAKE) -C payloads/external/SeaBIOS -f Makefile.inc distclean
-	$(MAKE) -C payloads/external/U-Boot -f Makefile.inc distclean
-	$(MAKE) -C payloads/external/Memtest86Plus -f Makefile.inc distclean
+	$(foreach payload, $(PAYLOADS_LIST), $(MAKE) -C $(payload) distclean; )
 
-.phony: clean-payloads distclean-payloads
+print-repo-info-payloads:
+	-$(foreach payload, $(PAYLOADS_LIST), $(MAKE) -C $(payload) print-repo-info 2>/dev/null; )
+
+.PHONY: clean-payloads distclean-payloads print-repo-info-payloads

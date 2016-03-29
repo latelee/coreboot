@@ -80,11 +80,9 @@ config REMOTEGDB
 	help
 	  Enable Remote GDB debugging support.
 
-config CHROMEOS
-	bool "ChromeOS specific features"
+config MEMMAP_RAM_ONLY
+	bool "Only consider RAM entries in memory map for further processing"
 	default n
-	help
-	  Enable ChromeOS specific features.
 
 endmenu
 
@@ -116,14 +114,39 @@ config ARCH_MIPS
 
 endchoice
 
-config MEMMAP_RAM_ONLY
-	bool "Only consider RAM entries in memory map for further processing"
-	default n
-
 config MULTIBOOT
 	bool "Multiboot header support"
 	depends on ARCH_X86
 	default y
+
+config HEAP_SIZE
+	int "Heap size"
+	default 131072
+	help
+	  This is the heap size (malloc'able size) available
+	  to the payload.
+
+	  If unsure, set to 131072 (128K)
+
+config STACK_SIZE
+	int "Stack size"
+	default 16384
+	help
+	  This is the stack size available to the payload.
+
+	  If unsure, set to 16384 (16K)
+
+config BASE_ADDRESS
+	hex "Base address"
+	default 0x04000000 if ARCH_ARM
+	default 0x80100000 if ARCH_ARM64
+	default 0x00000000 if ARCH_MIPS
+	default 0x00100000 if ARCH_X86
+	help
+	  This is the base address for the payload.
+
+	  If unsure, set to 0x00100000 on x86, 0x00000000 on MIPS,
+	  0x04000000 on ARM or 0x80100000 on ARM64.
 
 endmenu
 
@@ -629,10 +652,12 @@ config LITTLE_ENDIAN
 	default n
 	bool
 
-# Whether the target system has an IO address space.
 config IO_ADDRESS_SPACE
 	default n
 	bool
+	help
+	  This option is turned on if the target system has a separate
+	  IO address space. This is typically only the case on x86.
 
 source "arch/arm/Kconfig"
 source "arch/arm64/Kconfig"

@@ -42,7 +42,7 @@ config MAINBOARD_PART_NUMBER
 
 config MMCONF_BASE_ADDRESS
 	hex
-	default 0xf0000000
+	default 0xf8000000
 
 config MAX_CPUS
 	int
@@ -67,5 +67,9 @@ config MAINBOARD_PCI_SUBSYSTEM_VENDOR_ID
 config MAINBOARD_PCI_SUBSYSTEM_DEVICE_ID
 	hex
 	default 0x21fa
+
+config ONBOARD_VGA_IS_PRIMARY
+	bool
+	default y
 
 endif # BOARD_LENOVO_T530

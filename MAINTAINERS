@@ -126,6 +126,14 @@ F:	src/arch/riscv/
 F:	src/soc/ucb/
 F:	src/mainboard/emulation/qemu-riscv/
 
+POWER8 ARCHITECTURE
+M:	Ronald Minnich <rminnich@gmail.com>
+M:	Timothy Pearson <tpearson@raptorengineeringinc.com>
+S:	Maintained
+F:	src/arch/power8/
+F:	src/cpu/qemu-power8/
+F:	src/mainboard/emulation/qemu-power8/
+
 LENOVO EC
 M:	Alexander Couzens <lynxis@fe80.eu>
 S:	Maintained
@@ -199,6 +207,17 @@ M:	Huang Jin <huang.jin@intel.com>
 M:	York Yang <york.yang@intel.com>
 S:	Supported
 F:	src/drivers/intel/fsp1_1/
+
+INTEL STRAGO MAINBOARD
+M:	Hannah Williams <hannah.williams@intel.com>
+S:	Supported
+F:	/src/mainboard/intel/strago/
+
+INTEL BRASWELL SOC
+M:	Hannah Williams <hannah.williams@intel.com>
+S:	Supported
+F:	/src/soc/intel/braswell
+F:	/src/vendorcode/intel/fsp/fsp1_1/braswell
 
 ASUS KFSN4-DRE & KFSN4-DRE_K8 MAINBOARDS
 M:	Timothy Pearson <tpearson@raptorengineeringinc.com>
@@ -310,12 +329,17 @@ F:	src/southbridge/via/
 
 LINT SCRIPTS
 M:	Patrick Georgi <patrick@georgi-clan.de>
+M:	Martin Roth <gaumless@gmail.com>
 S:	Supported
 F:	util/lint/
 
 INTELTOOL
 M:	Stefan Reinauer <stefan.reinauer@coreboot.org>
 F:	util/inteltool/
+
+INTELMETOOL
+M:	Philipp Deppenwiese <zaolin.daisuki@gmail.com>
+F:	util/intelmetool/
 
 IFDTOOL
 M:	Stefan Reinauer <stefan.reinauer@coreboot.org>
@@ -333,6 +357,8 @@ F:	util/kconfig/
 F:	util/sconfig/
 
 BOARD STATUS
+M:	Martin Roth <gaumless@gmail.com>
+S:	Supported
 F:	util/board_status/
 
 BINARY OBJECTS
@@ -383,6 +409,7 @@ F:	payloads/coreinfo/
 
 EXTERNAL PAYLOADS INTEGRATION
 M:	Stefan Reinauer <stefan.reinauer@coreboot.org>
+M:	Martin Roth <gaumless@gmail.com>
 F:	payloads/external
 
 VERIFIED BOOT 2

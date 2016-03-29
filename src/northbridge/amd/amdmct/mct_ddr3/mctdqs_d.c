@@ -875,9 +875,13 @@ static void Calc_SetMaxRdLatency_D_Fam15(struct MCTStatStruc *pMCTstat,
 	printk(BIOS_DEBUG, "%s: Start\n", __func__);
 #endif
 
+	uint8_t lane_count;
+	lane_count = get_available_lane_count(pMCTstat, pDCTstat);
+
 	mem_clk = Get_NB32_DCT(dev, dct, 0x94) & 0x1f;
 	if (fam15h_freq_tab[mem_clk] == 0) {
-		pDCTstat->CH_MaxRdLat[dct] = 0x55;
+		pDCTstat->CH_MaxRdLat[dct][0] = 0x55;
+		pDCTstat->CH_MaxRdLat[dct][1] = 0x55;
 		return;
 	}
 
@@ -916,7 +920,7 @@ static void Calc_SetMaxRdLatency_D_Fam15(struct MCTStatStruc *pMCTstat,
 
 			read_dqs_receiver_enable_control_registers(current_phy_phase_delay, dev, dct, dimm, index_reg);
 			read_dqs_read_data_timing_registers(current_read_dqs_delay, dev, dct, dimm, index_reg);
-			for (lane = 0; lane < MAX_BYTE_LANES; lane++)
+			for (lane = 0; lane < lane_count; lane++)
 				if ((current_phy_phase_delay[lane] + current_read_dqs_delay[lane]) > max_delay)
 					max_delay = (current_phy_phase_delay[lane] + current_read_dqs_delay[lane]);
 		}
@@ -947,10 +951,10 @@ static void Calc_SetMaxRdLatency_D_Fam15(struct MCTStatStruc *pMCTstat,
 		}
 
 		/* Save result for later use */
-		pDCTstat->CH_MaxRdLat[dct] = n - 1;
+		pDCTstat->CH_MaxRdLat[dct][nb_pstate] = n - 1;
 
 #if DQS_TRAIN_DEBUG > 0
-		printk(BIOS_DEBUG, "%s: CH_MaxRdLat[%d]: %03x\n", __func__, dct, pDCTstat->CH_MaxRdLat[dct]);
+		printk(BIOS_DEBUG, "%s: CH_MaxRdLat[%d][%d]: %03x\n", __func__, dct, nb_pstate, pDCTstat->CH_MaxRdLat[dct][nb_pstate]);
 #endif
 	}
 
@@ -1269,6 +1273,9 @@ static uint8_t TrainDQSRdWrPos_D_Fam15(struct MCTStatStruc *pMCTstat,
 
 	uint32_t index_reg = 0x98;
 	uint32_t dev = pDCTstat->dev_dct;
+
+	uint8_t lane_count;
+	lane_count = get_available_lane_count(pMCTstat, pDCTstat);
 
 	/* Calculate and program MaxRdLatency */
 	Calc_SetMaxRdLatency_D_Fam15(pMCTstat, pDCTstat, dct, 0);
@@ -1620,6 +1627,9 @@ static void TrainDQSReceiverEnCyc_D_Fam15(struct MCTStatStruc *pMCTstat,
 	uint32_t index_reg = 0x98;
 	uint32_t dev = pDCTstat->dev_dct;
 
+	uint8_t lane_count;
+	lane_count = get_available_lane_count(pMCTstat, pDCTstat);
+
 	print_debug_dqs("\nTrainDQSReceiverEnCyc: Node_ID ", pDCTstat->Node_ID, 0);
 	cr4 = read_cr4();
 	if (cr4 & (1<<9)) {
@@ -1677,7 +1687,7 @@ static void TrainDQSReceiverEnCyc_D_Fam15(struct MCTStatStruc *pMCTstat,
 			/* 2.10.5.8.3 (2) */
 			read_dqs_receiver_enable_control_registers(initial_phy_phase_delay, dev, dct, dimm, index_reg);
 
-			for (lane = 0; lane < MAX_BYTE_LANES; lane++) {
+			for (lane = 0; lane < lane_count; lane++) {
 				/* Initialize variables */
 				memset(dqs_results_array, 0, sizeof(dqs_results_array));
 
@@ -1703,7 +1713,7 @@ static void TrainDQSReceiverEnCyc_D_Fam15(struct MCTStatStruc *pMCTstat,
 
 					/* Reset the read data timing registers to 1UI before calculating MaxRdLatency */
 					for (internal_lane = 0; internal_lane < MAX_BYTE_LANES; internal_lane++)
-						current_read_dqs_delay[internal_lane] = 0x20 << 1;
+						current_read_dqs_delay[internal_lane] = 0x20;
 					write_dqs_read_data_timing_registers(current_read_dqs_delay, dev, dct, dimm, index_reg);
 
 					/* Calculate and program MaxRdLatency */
@@ -1725,6 +1735,12 @@ static void TrainDQSReceiverEnCyc_D_Fam15(struct MCTStatStruc *pMCTstat,
 							"Training for receiver %d on DCT %d aborted\n",
 							__func__, lane, Receiver, dct);
 					}
+
+					/* Restore BlockRxDqsLock setting to normal operation in preparation for retraining */
+					dword = Get_NB32_index_wait_DCT(dev, dct, index_reg, 0x0d0f0030 | (lane << 8));
+					dword &= ~(0x1 << 8);								/* BlockRxDqsLock = 0 */
+					Set_NB32_index_wait_DCT(dev, dct, index_reg, 0x0d0f0030 | (lane << 8), dword);
+
 					break;
 				}
 
@@ -1773,7 +1789,7 @@ static void TrainDQSReceiverEnCyc_D_Fam15(struct MCTStatStruc *pMCTstat,
 
 #if DQS_TRAIN_DEBUG > 0
 			printk(BIOS_DEBUG, "TrainDQSReceiverEnCyc_D_Fam15 DQS receiver enable timing: ");
-			for (lane = 0; lane < MAX_BYTE_LANES; lane++) {
+			for (lane = 0; lane < lane_count; lane++) {
 				printk(BIOS_DEBUG, " %03x", current_phy_phase_delay[lane]);
 			}
 			printk(BIOS_DEBUG, "\n");

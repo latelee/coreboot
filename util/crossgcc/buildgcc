@@ -18,8 +18,8 @@
 
 cd $(dirname $0)
 
-CROSSGCC_DATE="March 1st, 2016"
-CROSSGCC_VERSION="1.36"
+CROSSGCC_DATE="March 21st, 2016"
+CROSSGCC_VERSION="1.37"
 
 # default settings
 PACKAGE=GCC
@@ -39,7 +39,7 @@ GCC_VERSION=5.2.0
 GCC_AUTOCONF_VERSION=2.69
 BINUTILS_VERSION=2.25
 GDB_VERSION=7.9.1
-IASL_VERSION=20150619
+IASL_VERSION=20160318
 PYTHON_VERSION=3.4.3
 EXPAT_VERSION=2.1.0
 # CLANG version number
@@ -126,9 +126,9 @@ please_install()
 	*) solution="using your OS packaging system" ;;
 	esac
 
-	printf "${RED}ERROR:${red} Missing tool: Please install \'$1\' utility. (eg $solution)${NC}\n" >&2
+	printf "${RED}ERROR:${red} Missing tool: Please install \'$1\'. (eg $solution)${NC}\n" >&2
 	if [ -n "$2" ]; then
-		printf "${RED}ERROR:${red}               or install \'$2\' utility. (eg $solution)${NC}\n" >&2
+		printf "${RED}ERROR:${red}               or install \'$2\'.${NC}\n" >&2
 	fi
 }
 
@@ -188,6 +188,19 @@ searchtool()
 	false
 }
 
+# Run a compile check of the specified library option to see if it's installed
+check_for_library() {
+	local LIBRARY_FLAGS=$1
+	local LIBRARY_PACKAGES=$2
+	local LIBTEST_FILE=.libtest
+
+	echo "int main(int argc, char **argv) { (void) argc; (void) argv; return 0; }" > "${LIBTEST_FILE}.c"
+
+	cc $CFLAGS $LIBRARY_FLAGS "${LIBTEST_FILE}.c" -o "${LIBTEST_FILE}" >/dev/null 2>&1 || \
+		please_install "$LIBRARY_PACKAGES"
+	rm -rf "${LIBTEST_FILE}.c" "${LIBTEST_FILE}"
+}
+
 check_sum() {
 	test -z "$CHECKSUM" || \
 	test "$(cat sum/$1.cksum 2>/dev/null | sed -e 's@.*\([0-9a-f]\{40,\}\).*@\1@')" = \
@@ -243,10 +256,13 @@ unpack_and_patch() {
 		printf " * $(basename $archive)\n"
 		FLAGS=zxf
 		suffix=$(echo $archive | sed 's,.*\.,,')
-		test "$suffix" = "gz" && FLAGS=zxf
-		test "$suffix" = "bz2" && FLAGS=jxf
-		test "$suffix" = "xz" && FLAGS="--xz -xf"
-		test "$suffix" = "lzma" && FLAGS="--lzma -xf"
+		if [ "$suffix" = "gz" ] && [ -n "$PIGZ" ]; then FLAGS="-I pigz -xf"
+		elif [ "$suffix" = "gz" ]; then FLAGS=zxf
+		elif [ "$suffix" = "bz2" ] && [ -n "$LBZIP2" ]; then FLAGS="-I lbzip2 -xf"
+		elif [ "$suffix" = "bz2" ]; then FLAGS=jxf
+		elif [ "$suffix" = "xz" ]; then FLAGS="--xz -xf"
+		elif [ "$suffix" = "lzma" ]; then FLAGS="--lzma -xf"
+		fi
 		$TAR $FLAGS tarballs/$(basename $archive)
 		for patch in patches/${dir}_*.patch; do
 			test -r $patch || continue
@@ -326,9 +342,9 @@ myhelp()
 	printf "       [--nocolor]                don't print color codes in output\n"
 	printf "       [--urls]                   print the urls for all packages\n"
 	printf "    [-j|--jobs <num>]             run <num> jobs in parallel in make\n"
-	printf "    [-s]--supported <tool>        print supported version of a tool"
+	printf "    [-s]--supported <tool>        print supported version of a tool\n"
 	printf "    [-d|--directory <target dir>] target directory to install cross compiler to\n"
-	printf "                                  (defaults to $TARGETDIR)\n\n"
+	printf "        (defaults to $TARGETDIR)\n\n"
 	printf "    [-D|--destdir <dest dir>]     destination directory to install cross compiler to\n"
 	printf "                                  (for RPM builds, default unset)\n"
 	printf "    [-P|--package <package>]      Build a specific package: GCC, CLANG, IASL, GDB\n"
@@ -450,7 +466,7 @@ build_GCC() {
 		--disable-libssp --disable-bootstrap --disable-nls \
 		--disable-libquadmath --without-headers \
 		--disable-threads \
-		--enable-interwork --enable-multilib \
+		--enable-interwork --enable-multilib --enable-targets=all \
 		--disable-libatomic --disable-libcc1 --disable-decimal-float \
 		${GCC_OPTIONS} --enable-languages="${LANGUAGES}" \
 		--with-system-zlib \
@@ -675,6 +691,8 @@ MAKE=$(searchtool make) || exit $?
 SHA1SUM=$(searchtool sha1sum)
 SHA512SUM=$(searchtool sha512sum)
 CHECKSUM=$SHA1SUM
+LBZIP2=$(searchtool lbzip2 "" nofail)
+PIGZ=$(searchtool pigz "" nofail)
 
 searchtool m4 > /dev/null
 searchtool bison > /dev/null
@@ -684,6 +702,8 @@ searchtool clang "clang version" nofail > /dev/null || \
 searchtool clang "LLVM" "" "g++" > /dev/null
 searchtool wget > /dev/null
 searchtool bzip2 "bzip2," > /dev/null
+
+check_for_library "-lz" "zlib (zlib1g-dev or zlib-devel)"
 
 if [ "$HALT_FOR_TOOLS" -ne 0 ]; then
 	exit 1
