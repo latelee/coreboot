@@ -1149,7 +1149,7 @@ void pci_scan_bus(struct bus *bus, unsigned min_devfn,
 	 * For all children that implement scan_bus() (i.e. bridges)
 	 * scan the bus behind that child.
 	 */
-
+	// …®√Ëpci«≈
 	scan_bridges(bus);
 
 	/*

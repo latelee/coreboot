@@ -69,7 +69,7 @@ void dev_initialize_chips(void)
 				!dev->chip_ops->initialized) {
 			ll_printk("in %s()\n", __func__);
 			post_log_path(dev);
-			dev->chip_ops->init(dev->chip_info); // 调用chip_operations的init函数
+			dev->chip_ops->init(dev->chip_info); // 调用chip_operations的init函数 baytrail的为baytrail_core_init
 			dev->chip_ops->initialized = 1;
 		}
 	}
@@ -949,7 +949,7 @@ void scan_bridges(struct bus *bus)
 	for (child = bus->children; child; child = child->sibling) {
 		if (!child->ops || !child->ops->scan_bus)
 			continue;
-		scan_bus(child);
+		scan_bus(child); // 再调用scan_bus
 	}
 }
 
@@ -1144,7 +1144,7 @@ static void init_dev(struct device *dev)
 
 		printk(BIOS_DEBUG, "%s init ...\n", dev_path(dev));
 		dev->initialized = 1;
-		dev->ops->init(dev);
+		dev->ops->init(dev); // 调用device_operations操作函数集的init
 #if CONFIG_HAVE_MONOTONIC_TIMER
 		printk(BIOS_DEBUG, "%s init finished in %ld usecs\n", dev_path(dev),
 			stopwatch_duration_usecs(&sw));

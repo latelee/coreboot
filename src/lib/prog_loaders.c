@@ -130,6 +130,7 @@ void run_ramstage(void)
 
 	timestamp_add_now(TS_END_COPYRAM);
 
+	// 运行ramstage
 	prog_run(&ramstage);
 
 fail:
@@ -146,6 +147,7 @@ void __attribute__((weak)) mirror_payload(struct prog *payload)
 	return;
 }
 
+// 加载payload
 void payload_load(void)
 {
 	struct prog *payload = &global_payload;
@@ -166,6 +168,7 @@ out:
 		die("Payload not loaded.\n");
 }
 
+// 运行payload
 void payload_run(void)
 {
 	struct prog *payload = &global_payload;

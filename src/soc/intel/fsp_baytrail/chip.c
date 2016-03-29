@@ -26,7 +26,7 @@ static void pci_domain_set_resources(device_t dev)
 	assign_resources(dev->link_list);
 }
 
-// PCI
+// 这是PCI的
 static struct device_operations pci_domain_ops = {
 	.read_resources   = pci_domain_read_resources,
 	.set_resources    = pci_domain_set_resources,
@@ -36,7 +36,7 @@ static struct device_operations pci_domain_ops = {
 	.ops_pci_bus      = pci_bus_default_ops,
 };
 
-// 芯片级别操作函数
+// 这是DEVICE_PATH_CPU_CLUSTER的操作函数，只有init
 static struct device_operations cpu_bus_ops = {
 	.read_resources   = DEVICE_NOOP,
 	.set_resources    = DEVICE_NOOP,
@@ -48,6 +48,7 @@ static struct device_operations cpu_bus_ops = {
 // 使能设置
 static void enable_dev(device_t dev)
 {
+	// 打印，如enable_dev(Intel BayTrail SoC, 2)
 	printk(BIOS_DEBUG, "enable_dev(%s, %d)\n",
 	       dev_name(dev), dev->path.type);
 
@@ -55,18 +56,19 @@ static void enable_dev(device_t dev)
 	if (dev->path.type == DEVICE_PATH_DOMAIN) {
 		dev->ops = &pci_domain_ops; // PCI
 	} else if (dev->path.type == DEVICE_PATH_CPU_CLUSTER) {
-		dev->ops = &cpu_bus_ops; // 总线操作
+		dev->ops = &cpu_bus_ops;
 	} else if (dev->path.type == DEVICE_PATH_PCI) {
 		/* Handle south cluster enablement. */
 		if (PCI_SLOT(dev->path.pci.devfn) > GFX_DEV &&
 		    (dev->ops == NULL || dev->ops->enable == NULL)) {
-			southcluster_enable_dev(dev);
+			southcluster_enable_dev(dev); // 南桥?
 		}
 	}
 }
 
 /* Called at BS_DEV_INIT_CHIPS time -- very early. Just after BS_PRE_DEVICE. */
 // 芯片级初始化，在BS_DEV_INIT_CHIPS阶段调用到，参见hardwaremain.c
+// 注: cpu.c也有init，但那是device_operations的，此处为chip_operations，注意区别
 static void soc_init(void *chip_info)
 {
 	baytrail_init_pre_device(); // ramstage.c中定义
