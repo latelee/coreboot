@@ -238,6 +238,7 @@ static struct device_operations pci_domain_ops = {
 
 static void cpu_bus_init(device_t dev)
 {
+    ll_printk("MARK...\n");
 	initialize_cpus(dev->link_list);
 }
 

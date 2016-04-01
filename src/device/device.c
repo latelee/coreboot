@@ -946,6 +946,7 @@ void scan_bridges(struct bus *bus)
 {
 	struct device *child;
 
+    ll_printk("in %s()...\n", __func__);
 	for (child = bus->children; child; child = child->sibling) {
 		if (!child->ops || !child->ops->scan_bus)
 			continue;
@@ -1003,7 +1004,6 @@ void dev_enumerate(void)
 	scan_bus(root);
 	post_log_clear();
 	printk(BIOS_INFO, "done\n");
-
 }
 
 /**
