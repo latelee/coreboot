@@ -49,6 +49,7 @@ static void qemu_reserve_ports(struct device *dev, unsigned int idx,
 
 static void cpu_pci_domain_set_resources(device_t dev)
 {
+    ll_printk("in qemu-i440fx %s()...\n", __func__);
 	assign_resources(dev->link_list);
 }
 
@@ -61,6 +62,8 @@ static void cpu_pci_domain_read_resources(struct device *dev)
 	unsigned long tomk = 0, high;
 	int idx = 10;
 	int size;
+
+    ll_printk("qemu-i440fx %s()...\n", __func__);
 
 	pci_domain_read_resources(dev);
 

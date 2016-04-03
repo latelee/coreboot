@@ -459,6 +459,7 @@ static void pci_set_resource(struct device *dev, struct resource *resource)
 {
 	resource_t base, end;
 
+    //ll_printk("in %s()...\n", __func__);
 	/* Make certain the resource has actually been assigned a value. */
 	if (!(resource->flags & IORESOURCE_ASSIGNED)) {
 		printk(BIOS_ERR, "ERROR: %s %02lx %s size: 0x%010llx not "
@@ -559,6 +560,7 @@ void pci_dev_set_resources(struct device *dev)
 	struct bus *bus;
 	u8 line;
 
+    //ll_printk("in %s()..\n", __func__);
 	for (res = dev->resource_list; res; res = res->next)
 		pci_set_resource(dev, res);
 
@@ -845,13 +847,16 @@ static int device_id_match(struct pci_driver *driver, unsigned short device_id)
  * @param dev Pointer to the device whose pci_ops you want to set.
  * @see pci_drivers
  */
+ // 设置pci操作函数
 static void set_pci_ops(struct device *dev)
 {
 	struct pci_driver *driver;
 
+    // 如果已经赋值了ops，则直接返回
 	if (dev->ops)
 		return;
 
+    // 找到一个匹配的驱动的ops
 	/*
 	 * Look through the list of setup drivers and find one for
 	 * this PCI device.
@@ -867,6 +872,7 @@ static void set_pci_ops(struct device *dev)
 		}
 	}
 
+    // 如果没有，就使用默认的
 	/* If I don't have a specific driver use the default operations. */
 	switch (dev->hdr_type & 0x7f) {	/* Header type */
 	case PCI_HEADER_TYPE_NORMAL:
@@ -1105,7 +1111,9 @@ void pci_scan_bus(struct bus *bus, unsigned min_devfn,
 	bus->children = NULL;
 
 	post_code(0x24);
+    ll_printk("in %s().%d scan all pci & probe pci...\n", __func__, __LINE__);
 
+    //扫描所有的pci
 	/*
 	 * Probe all devices/functions on this bus with some optimization for
 	 * non-existence and single function devices.
@@ -1115,6 +1123,7 @@ void pci_scan_bus(struct bus *bus, unsigned min_devfn,
 
 		/* First thing setup the device structure. */
 		dev = pci_scan_get_dev(&old_devices, devfn);
+        //ll_printk("++++++++++++++in %s().%d...\n", __func__, __LINE__);
 
 		/* See if a device is present and setup the device structure. */
 		dev = pci_probe_dev(dev, bus, devfn);

@@ -846,6 +846,7 @@ void assign_resources(struct bus *bus)
 			continue;
 		}
 		post_log_path(curdev);
+        ll_printk("in %s() set resources...\n");
 		curdev->ops->set_resources(curdev);
 	}
 	post_log_clear();
