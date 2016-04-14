@@ -2,7 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
- * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
+ * Copyright (C) 2015 - 2016 Raptor Engineering, LLC
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -399,8 +399,15 @@ static void sb700_devices_por_init(void)
 	if (inb(SMBUS_IO_BASE) == 0xff)
 		printk(BIOS_INFO, "%s: Primary SMBUS controller I/O not found\n", __func__);
 
-	if (inb(SMBUS_AUX_IO_BASE) == 0xff)
+	if (inb(SMBUS_AUX_IO_BASE) == 0xff) {
 		printk(BIOS_INFO, "%s: Secondary SMBUS controller I/O not found\n", __func__);
+	}
+	else {
+		if (IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_SUBTYPE_SP5100)) {
+			/* Disable legacy sensor support / reset ASF Slave state machine per RPR 2.27 step 3 */
+			outb(0x40, SMBUS_AUX_IO_BASE + SMBSLVMISC);
+		}
+	}
 
 	/* KB2RstEnable */
 	pci_write_config8(dev, 0x40, 0x44);
@@ -543,12 +550,12 @@ static void sb700_devices_por_init(void)
 
 			/* set Device ID consistent with IDE emulation mode configuration */
 			pci_write_config32(dev, 0x0, 0x43901002);
-
-			/* rpr v2.13 4.17 Reset CPU on Sync Flood */
-			abcfg_reg(0x10050, 1 << 2, 1 << 2);
 		}
 #endif
 	}
+
+	/* rpr v2.13 4.17 Reset CPU on Sync Flood */
+	abcfg_reg(0x10050, 1 << 2, 1 << 2);
 
 	/* SATA Device, BDF:0-17-0, Non-Raid-5 SATA controller */
 	printk(BIOS_INFO, "sb700_devices_por_init(): SATA Device, BDF:0-17-0\n");
@@ -600,40 +607,50 @@ static void sb700_pmio_por_init(void)
 	byte |= 0x20;
 	pmio_write(0x66, byte);
 
-	/* RPR2.31 PM_TURN_OFF_MSG during ASF Shutdown. */
-	if (get_sb700_revision(pci_locate_device(PCI_ID(0x1002, 0x4385), 0)) <= 0x12) {
+	if (IS_ENABLED(CONFIG_SOUTHBRIDGE_AMD_SUBTYPE_SP5100)) {
+		/* RPR 2.11 Sx State Settings */
 		byte = pmio_read(0x65);
-		byte &= ~(1 << 7);
+		byte &= ~(1 << 7);		/* SpecialFunc = 0 */
 		pmio_write(0x65, byte);
 
-		byte = pmio_read(0x75);
-		byte &= 0xc0;
-		byte |= 0x05;
-		pmio_write(0x75, byte);
-
-		byte = pmio_read(0x52);
-		byte &= 0xc0;
-		byte |= 0x08;
-		pmio_write(0x52, byte);
+		byte = pmio_read(0x68);
+		byte |= 1 << 2;			/* MaskApicEn = 1 */
+		pmio_write(0x68, byte);
 	} else {
-		byte = pmio_read(0xD7);
-		byte |= 1 << 0;
-		pmio_write(0xD7, byte);
+		/* RPR2.31 PM_TURN_OFF_MSG during ASF Shutdown. */
+		if (get_sb700_revision(pci_locate_device(PCI_ID(0x1002, 0x4385), 0)) <= 0x12) {
+			byte = pmio_read(0x65);
+			byte &= ~(1 << 7);
+			pmio_write(0x65, byte);
 
-		byte = pmio_read(0x65);
-		byte |= 1 << 7;
-		pmio_write(0x65, byte);
+			byte = pmio_read(0x75);
+			byte &= 0xc0;
+			byte |= 0x05;
+			pmio_write(0x75, byte);
 
-		byte = pmio_read(0x75);
-		byte &= 0xc0;
-		byte |= 0x01;
-		pmio_write(0x75, byte);
+			byte = pmio_read(0x52);
+			byte &= 0xc0;
+			byte |= 0x08;
+			pmio_write(0x52, byte);
+		} else {
+			byte = pmio_read(0xD7);
+			byte |= 1 << 0;
+			pmio_write(0xD7, byte);
 
-		byte = pmio_read(0x52);
-		byte &= 0xc0;
-		byte |= 0x02;
-		pmio_write(0x52, byte);
+			byte = pmio_read(0x65);
+			byte |= 1 << 7;
+			pmio_write(0x65, byte);
 
+			byte = pmio_read(0x75);
+			byte &= 0xc0;
+			byte |= 0x01;
+			pmio_write(0x75, byte);
+
+			byte = pmio_read(0x52);
+			byte &= 0xc0;
+			byte |= 0x02;
+			pmio_write(0x52, byte);
+		}
 	}
 
 	/* Watch Dog Timer Control
@@ -670,6 +687,11 @@ static void sb700_pmio_por_init(void)
 	pmio_write(0xbb, byte);
 
 #if CONFIG_SOUTHBRIDGE_AMD_SUBTYPE_SP5100
+	/* RPR 2.26 Alter CPU reset timing */
+	byte = pmio_read(0xb2);
+	byte |= 0x1 << 2;	/* Enable CPU reset timing option */
+	pmio_write(0xb2, byte);
+
 	/* Work around system clock drift issues */
 	byte = pmio_read(0xd4);
 	byte |= 0x1 << 6;	/* Enable alternate 14MHz clock source */
@@ -756,6 +778,17 @@ static void sb700_por_init(void)
 
 	/* sbPmioPorInitTable + sbK8PmioPorInitTable */
 	sb700_pmio_por_init();
+}
+
+uint16_t sb7xx_51xx_decode_last_reset(void) {
+	uint16_t reset_status = 0;
+	reset_status |= pmio_read(0x44);
+	reset_status |= (pmio_read(0x45) << 8);
+	printk(BIOS_INFO, "sb700 reset flags: %04x\n", reset_status);
+	if (reset_status & (0x1 << 10))
+		printk(BIOS_WARNING, "WARNING: Last reset was caused by fatal error / sync flood!\n");
+
+	return reset_status;
 }
 
 /*

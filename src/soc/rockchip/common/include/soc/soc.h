@@ -1,7 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
- * Copyright 2015 Google Inc.
+ * Copyright 2014 Rockchip Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,21 +13,14 @@
  * GNU General Public License for more details.
  */
 
-#include <commonlib/cbfs.h>
-#include <commonlib/region.h>
+#ifndef __COREBOOT_SRC_SOC_ROCKCHIP_COMMON_INCLUDE_SOC_SOC_H
+#define __COREBOOT_SRC_SOC_ROCKCHIP_COMMON_INCLUDE_SOC_SOC_H
 
-int cbfs_calculate_hash(void *cbfs, size_t cbfs_sz,
-			enum vb2_hash_algorithm hash_algo,
-			void *digest, size_t digest_sz);
+#include <arch/io.h>
+#include <symbols.h>
 
-int cbfs_calculate_hash(void *cbfs, size_t cbfs_sz,
-			enum vb2_hash_algorithm hash_algo,
-			void *digest, size_t digest_sz)
-{
-	struct mem_region_device mdev;
+#define RK_CLRSETBITS(clr, set) ((((clr) | (set)) << 16) | set)
+#define RK_SETBITS(set) RK_CLRSETBITS(0, set)
+#define RK_CLRBITS(clr) RK_CLRSETBITS(clr, 0)
 
-	mem_region_device_init(&mdev, cbfs, cbfs_sz);
-
-	return cbfs_vb2_hash_contents(&mdev.rdev,
-				hash_algo, digest, digest_sz);
-}
+#endif  /* ! __COREBOOT_SRC_SOC_ROCKCHIP_COMMON_INCLUDE_SOC_SOC_H */

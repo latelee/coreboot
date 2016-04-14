@@ -18,8 +18,8 @@
 
 cd $(dirname $0)
 
-CROSSGCC_DATE="March 21st, 2016"
-CROSSGCC_VERSION="1.37"
+CROSSGCC_DATE="April 3rd, 2016"
+CROSSGCC_VERSION="1.38"
 
 # default settings
 PACKAGE=GCC
@@ -191,7 +191,7 @@ searchtool()
 # Run a compile check of the specified library option to see if it's installed
 check_for_library() {
 	local LIBRARY_FLAGS=$1
-	local LIBRARY_PACKAGES=$2
+	local LIBRARY_PACKAGES="$2"
 	local LIBTEST_FILE=.libtest
 
 	echo "int main(int argc, char **argv) { (void) argc; (void) argv; return 0; }" > "${LIBTEST_FILE}.c"
@@ -286,13 +286,25 @@ is_package_enabled()
 	echo "$PACKAGES" |grep -q "\<$1\>"
 }
 
+package_uses_targetarch()
+{
+	if [ "$1" = "GCC" ] || [ "$1" = "GDB" ] || [ "$1" = "BINUTILS" ] || \
+		[ "$1" = "PYTHON" ] || [ "$1" = "EXPAT" ]; then
+		true
+	else
+		false
+	fi
+}
+
 build() {
 	package=$1
 
 	fn_exists build_$package || return
 
 	version="$(eval echo \$$package"_VERSION")"
-	BUILDDIR=build-${TARGETARCH}-$package
+	package_uses_targetarch "$package" && \
+		BUILDDIR=build-${TARGETARCH}-$package || \
+		BUILDDIR=build-$package
 
 	mkdir -p ${BUILDDIR}
 
@@ -321,7 +333,7 @@ cleanup()
 {
 	printf "Cleaning up temporary files... "
 	for package in $PACKAGES; do
-		rm -rf build-${TARGETARCH}-$package $(eval echo \$$package"_DIR")
+		rm -rf build-${TARGETARCH}-$package build-$package $(eval echo \$$package"_DIR")
 	done
 	rm -f getopt
 	printf "${green}ok${NC}\n"
@@ -446,6 +458,7 @@ build_BINUTILS() {
 	CC="$CC" ../binutils-${BINUTILS_VERSION}/configure --prefix=$TARGETDIR \
 		--target=${TARGETARCH} --enable-targets=${TARGETARCH}${ADDITIONALTARGET} \
 		--disable-werror --disable-nls --enable-lto --enable-gold \
+		--enable-interwork --enable-multilib \
 		--enable-plugins --enable-multilibs CFLAGS="$HOSTCFLAGS" || touch .failed
 	$MAKE $JOBS || touch .failed
 	$MAKE install DESTDIR=$DESTDIR || touch .failed
@@ -453,13 +466,20 @@ build_BINUTILS() {
 
 
 build_GCC() {
+	# Work around crazy code generator in GCC that confuses CLANG.
+	$CC --version | grep clang >/dev/null 2>&1 && \
+		HOSTCFLAGS="$HOSTCFLAGS -fbracket-depth=1024"
+
 	# GCC does not honor HOSTCFLAGS at all. CFLAGS are used for
 	# both target and host object files.
 	# There's a work-around called CFLAGS_FOR_BUILD and CFLAGS_FOR_TARGET
 	# but it does not seem to work properly. At least the host library
 	# libiberty is not compiled with CFLAGS_FOR_BUILD.
+	# Also set the CXX version of the flags because GCC is now compiled
+	# using C++.
 	CC="$CC" CFLAGS_FOR_TARGET="-O2 -Dinhibit_libc" CFLAGS="$HOSTCFLAGS" \
-		CFLAGS_FOR_BUILD="$HOSTCFLAGS" ../gcc-${GCC_VERSION}/configure \
+		CFLAGS_FOR_BUILD="$HOSTCFLAGS" CXXFLAGS="$HOSTCFLAGS" \
+		CXXFLAGS_FOR_BUILD="$HOSTCFLAGS" ../gcc-${GCC_VERSION}/configure \
 		--prefix=$TARGETDIR --libexecdir=$TARGETDIR/lib \
 		--target=${TARGETARCH} --disable-werror --disable-shared \
 		--enable-lto --enable-plugins --enable-gold --enable-ld=default \

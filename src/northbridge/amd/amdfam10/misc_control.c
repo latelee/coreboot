@@ -5,6 +5,7 @@
  * Copyright (C) Stefan Reinauer
  * Copyright (C) 2007 Advanced Micro Devices, Inc.
  * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
+ * Copyright (C) 2016 Damien Zammit <damien@zamaudio.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,6 +30,7 @@
 #include <device/pci_ops.h>
 #include <pc80/mc146818rtc.h>
 #include <lib.h>
+#include <cbmem.h>
 #include <cpu/amd/model_10xxx_rev.h>
 
 #include "amdfam10.h"
@@ -117,8 +119,17 @@ static void set_agp_aperture(device_t dev, uint32_t pci_id)
 
 static void mcf3_set_resources_fam10h(device_t dev)
 {
-	/* Set the gart apeture */
+	/* Set the gart aperture */
 	set_agp_aperture(dev, 0x1203);
+
+	/* Set the generic PCI resources */
+	pci_dev_set_resources(dev);
+}
+
+static void mcf3_set_resources_fam15h_model10(device_t dev)
+{
+	/* Set the gart aperture */
+	set_agp_aperture(dev, 0x1403);
 
 	/* Set the generic PCI resources */
 	pci_dev_set_resources(dev);
@@ -126,7 +137,7 @@ static void mcf3_set_resources_fam10h(device_t dev)
 
 static void mcf3_set_resources_fam15h(device_t dev)
 {
-	/* Set the gart apeture */
+	/* Set the gart aperture */
 	set_agp_aperture(dev, 0x1603);
 
 	/* Set the generic PCI resources */
@@ -141,6 +152,43 @@ static void misc_control_init(struct device *dev)
 	uint8_t current_boost;
 
 	printk(BIOS_DEBUG, "NB: Function 3 Misc Control.. ");
+
+#if IS_ENABLED(CONFIG_DIMM_DDR3) && !IS_ENABLED(CONFIG_NORTHBRIDGE_AMD_AGESA)
+	uint8_t node;
+	uint8_t slot;
+	uint8_t dimm_present;
+
+	/* Restore DRAM MCA registers */
+	struct amdmct_memory_info *mem_info;
+	mem_info = cbmem_find(CBMEM_ID_AMDMCT_MEMINFO);
+	if (mem_info) {
+		node = PCI_SLOT(dev->path.pci.devfn) - 0x18;
+
+		/* Check node for installed DIMMs */
+		dimm_present = 0;
+
+		/* Check all slots for installed DIMMs */
+		for (slot = 0; slot < MAX_DIMMS_SUPPORTED; slot++) {
+			if (mem_info->dct_stat[node].DIMMPresent & (1 << slot)) {
+				dimm_present = 1;
+				break;
+			}
+		}
+
+		if (dimm_present) {
+			uint32_t mc4_status_high = pci_read_config32(dev, 0x4c);
+			uint32_t mc4_status_low = pci_read_config32(dev, 0x48);
+			if ((mc4_status_high & (0x1 << 31)) && (mc4_status_high != 0xffffffff)) {
+				printk(BIOS_WARNING, "\nWARNING: MC4 Machine Check Exception detected on node %d!\n"
+					"Signature: %08x%08x\n", node, mc4_status_high, mc4_status_low);
+			}
+
+			/* Clear MC4 error status */
+			pci_write_config32(dev, 0x48, 0x0);
+			pci_write_config32(dev, 0x4c, 0x0);
+		}
+	}
+#endif
 
 	/* Disable Machine checks from Invalid Locations.
 	 * This is needed for PC backwards compatibility.
@@ -175,6 +223,15 @@ static struct device_operations mcf3_ops_fam10h  = {
 	.ops_pci          = 0,
 };
 
+static struct device_operations mcf3_ops_fam15h_model10  = {
+	.read_resources   = mcf3_read_resources,
+	.set_resources    = mcf3_set_resources_fam15h_model10,
+	.enable_resources = pci_dev_enable_resources,
+	.init             = misc_control_init,
+	.scan_bus         = 0,
+	.ops_pci          = 0,
+};
+
 static struct device_operations mcf3_ops_fam15h  = {
 	.read_resources   = mcf3_read_resources,
 	.set_resources    = mcf3_set_resources_fam15h,
@@ -188,6 +245,12 @@ static const struct pci_driver mcf3_driver __pci_driver = {
 	.ops    = &mcf3_ops_fam10h,
 	.vendor = PCI_VENDOR_ID_AMD,
 	.device = 0x1203,
+};
+
+static const struct pci_driver mcf3_driver_fam15_model10 __pci_driver = {
+	.ops    = &mcf3_ops_fam15h_model10,
+	.vendor = PCI_VENDOR_ID_AMD,
+	.device = 0x1403,
 };
 
 static const struct pci_driver mcf3_driver_fam15 __pci_driver = {

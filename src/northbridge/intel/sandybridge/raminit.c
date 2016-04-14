@@ -135,6 +135,7 @@ struct ram_rank_timings {
 struct ramctr_timing_st;
 
 typedef struct ramctr_timing_st {
+	u16 spd_crc[NUM_CHANNELS][NUM_SLOTS];
 	int mobile;
 
 	u16 cas_supported;
@@ -184,6 +185,8 @@ typedef struct ramctr_timing_st {
 	int rank_mirror[NUM_CHANNELS][NUM_SLOTRANKS];
 
 	struct ram_rank_timings timings[NUM_CHANNELS][NUM_SLOTRANKS];
+
+	dimm_info info;
 } ramctr_timing;
 
 #define SOUTHBRIDGE PCI_DEV(0, 0x1f, 0)
@@ -196,6 +199,8 @@ typedef struct ramctr_timing_st {
 #define MAX_TIMC 127
 #define MAX_TIMB 511
 #define MAX_TIMA 127
+
+#define MAKE_ERR ((channel<<16)|(slotrank<<8)|1)
 
 static void program_timings(ramctr_timing * ctrl, int channel);
 
@@ -238,11 +243,15 @@ static void toggle_io_reset(void) {
 /*
  * Fill cbmem with information for SMBIOS type 17.
  */
-static void fill_smbios17(dimm_info *info, uint16_t ddr_freq)
+static void fill_smbios17(ramctr_timing *ctrl)
 {
 	struct memory_info *mem_info;
 	int channel, slot;
 	struct dimm_info *dimm;
+	uint16_t ddr_freq;
+	dimm_info *info = &ctrl->info;
+
+	ddr_freq = (1000 << 8) / ctrl->tCK;
 
 	/*
 	 * Allocate CBMEM area for DIMM information used to populate SMBIOS
@@ -316,6 +325,24 @@ static void report_memory_config(void)
 	}
 }
 
+/*
+ * Return CRC16 match for all SPDs.
+ */
+static int verify_crc16_spds_ddr3(spd_raw_data *spd, ramctr_timing *ctrl)
+{
+	int channel, slot, spd_slot;
+	int match = 1;
+
+	FOR_ALL_CHANNELS {
+		for (slot = 0; slot < NUM_SLOTS; slot++) {
+			spd_slot = 2 * channel + slot;
+			match &= ctrl->spd_crc[channel][slot] ==
+					spd_ddr3_calc_crc(spd[spd_slot], sizeof(spd_raw_data));
+		}
+	}
+	return match;
+}
+
 void read_spd(spd_raw_data * spd, u8 addr)
 {
 	int j;
@@ -323,11 +350,11 @@ void read_spd(spd_raw_data * spd, u8 addr)
 		(*spd)[j] = do_smbus_read_byte(SMBUS_IO_BASE, addr, j);
 }
 
-static void dram_find_spds_ddr3(spd_raw_data * spd, dimm_info * dimm,
-				ramctr_timing * ctrl)
+static void dram_find_spds_ddr3(spd_raw_data *spd, ramctr_timing *ctrl)
 {
 	int dimms = 0, dimms_on_channel;
 	int channel, slot, spd_slot;
+	dimm_info *dimm = &ctrl->info;
 
 	memset (ctrl->rankmap, 0, sizeof (ctrl->rankmap));
 
@@ -367,6 +394,10 @@ static void dram_find_spds_ddr3(spd_raw_data * spd, dimm_info * dimm,
 						 dimm->dimm[channel][slot].voltage);
 				spd_decode_ddr3(&dimm->dimm[channel][slot], spd[spd_slot]);
 			}
+
+			/* fill in CRC16 for MRC cache */
+			ctrl->spd_crc[channel][slot] =
+					spd_ddr3_calc_crc(spd[spd_slot], sizeof(spd_raw_data));
 
 			if (dimm->dimm[channel][slot].dram_type != SPD_MEMORY_TYPE_SDRAM_DDR3) {
 				// set dimm invalid
@@ -408,11 +439,12 @@ static void dram_find_spds_ddr3(spd_raw_data * spd, dimm_info * dimm,
 		die("No DIMMs were found");
 }
 
-static void dram_find_common_params(const dimm_info * dimms,
-				    ramctr_timing * ctrl)
+static void dram_find_common_params(ramctr_timing *ctrl)
 {
 	size_t valid_dimms;
 	int channel, slot;
+	dimm_info *dimms = &ctrl->info;
+
 	ctrl->cas_supported = 0xff;
 	valid_dimms = 0;
 	FOR_ALL_CHANNELS for (slot = 0; slot < 2; slot++) {
@@ -928,10 +960,11 @@ static void dram_timing_regs(ramctr_timing * ctrl)
 	}
 }
 
-static void dram_dimm_mapping(dimm_info * info, ramctr_timing * ctrl)
+static void dram_dimm_mapping(ramctr_timing *ctrl)
 {
 	u32 reg, val32;
 	int channel;
+	dimm_info *info = &ctrl->info;
 
 	FOR_ALL_CHANNELS {
 		dimm_attr *dimmA = 0;
@@ -1869,7 +1902,7 @@ static void discover_timA_fine(ramctr_timing * ctrl, int channel, int slotrank,
 	}
 }
 
-static void discover_402x(ramctr_timing * ctrl, int channel, int slotrank,
+static int discover_402x(ramctr_timing *ctrl, int channel, int slotrank,
 			  int *upperA)
 {
 	int works[NUM_LANES];
@@ -1887,18 +1920,24 @@ static void discover_402x(ramctr_timing * ctrl, int channel, int slotrank,
 				all_works = 0;
 		}
 		if (all_works)
-			return;
+			return 0;
 		if (!some_works) {
-			if (ctrl->timings[channel][slotrank].val_4024 < 2)
-				die("402x discovery failed");
+			if (ctrl->timings[channel][slotrank].val_4024 < 2) {
+				printk(BIOS_EMERG, "402x discovery failed (1): %d, %d\n",
+				       channel, slotrank);
+				return MAKE_ERR;
+			}
 			ctrl->timings[channel][slotrank].val_4024 -= 2;
 			printram("4024 -= 2;\n");
 			continue;
 		}
 		ctrl->timings[channel][slotrank].val_4028 += 2;
 		printram("4028 += 2;\n");
-		if (ctrl->timings[channel][slotrank].val_4028 >= 0x10)
-			die("402x discovery failed");
+		if (ctrl->timings[channel][slotrank].val_4028 >= 0x10) {
+			printk(BIOS_EMERG, "402x discovery failed (2): %d, %d\n",
+			       channel, slotrank);
+			return MAKE_ERR;
+		}
 		FOR_ALL_LANES if (works[lane]) {
 			ctrl->timings[channel][slotrank].lanes[lane].timA +=
 			    128;
@@ -1907,6 +1946,7 @@ static void discover_402x(ramctr_timing * ctrl, int channel, int slotrank,
 			       slotrank, lane);
 		}
 	}
+	return 0;
 }
 
 struct timA_minmax {
@@ -1975,9 +2015,10 @@ static void post_timA_change(ramctr_timing * ctrl, int channel, int slotrank,
  * Once the controller has detected this pattern a bit in the result register is
  * set for the current phase shift.
  */
-static void read_training(ramctr_timing * ctrl)
+static int read_training(ramctr_timing * ctrl)
 {
 	int channel, slotrank, lane;
+	int err;
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
 		int all_high, some_high;
@@ -2033,7 +2074,9 @@ static void read_training(ramctr_timing * ctrl)
 
 		pre_timA_change(ctrl, channel, slotrank, &mnmx);
 
-		discover_402x(ctrl, channel, slotrank, upperA);
+		err = discover_402x(ctrl, channel, slotrank, upperA);
+		if (err)
+			return err;
 
 		post_timA_change(ctrl, channel, slotrank, &mnmx);
 		pre_timA_change(ctrl, channel, slotrank, &mnmx);
@@ -2073,6 +2116,7 @@ static void read_training(ramctr_timing * ctrl)
 		write32(DEFAULT_MCHBAR + 0x4080 + 0x400 * channel
 			+ 4 * lane, 0);
 	}
+	return 0;
 }
 
 static void test_timC(ramctr_timing * ctrl, int channel, int slotrank)
@@ -2159,7 +2203,7 @@ static void test_timC(ramctr_timing * ctrl, int channel, int slotrank)
 	wait_428c(channel);
 }
 
-static void discover_timC(ramctr_timing * ctrl, int channel, int slotrank)
+static int discover_timC(ramctr_timing *ctrl, int channel, int slotrank)
 {
 	int timC;
 	int statistics[NUM_LANES][MAX_TIMC + 1];
@@ -2196,11 +2240,15 @@ static void discover_timC(ramctr_timing * ctrl, int channel, int slotrank)
 		struct run rn =
 		    get_longest_zero_run(statistics[lane], MAX_TIMC + 1);
 		ctrl->timings[channel][slotrank].lanes[lane].timC = rn.middle;
-		if (rn.all)
-			die("timC discovery failed");
+		if (rn.all) {
+			printk(BIOS_EMERG, "timC discovery failed: %d, %d, %d\n",
+			       channel, slotrank, lane);
+			return MAKE_ERR;
+		}
 		printram("Cval: %d, %d, %d: %x\n", channel, slotrank,
 		       lane, ctrl->timings[channel][slotrank].lanes[lane].timC);
 	}
+	return 0;
 }
 
 static int get_precedening_channels(ramctr_timing * ctrl, int target_channel)
@@ -2394,7 +2442,7 @@ static void test_timB(ramctr_timing * ctrl, int channel, int slotrank)
 		    0x1080 | make_mr1(ctrl, slotrank, channel));
 }
 
-static void discover_timB(ramctr_timing * ctrl, int channel, int slotrank)
+static int discover_timB(ramctr_timing *ctrl, int channel, int slotrank)
 {
 	int timB;
 	int statistics[NUM_LANES][128];
@@ -2437,11 +2485,15 @@ static void discover_timB(ramctr_timing * ctrl, int channel, int slotrank)
 		else if ((rn.start & 0x3F) == 0x3F)
 			rn.start += 1;
 		ctrl->timings[channel][slotrank].lanes[lane].timB = rn.start;
-		if (rn.all)
-			die("timB discovery failed");
+		if (rn.all) {
+			printk(BIOS_EMERG, "timB discovery failed: %d, %d, %d\n",
+			       channel, slotrank, lane);
+			return MAKE_ERR;
+		}
 		printram("Bval: %d, %d, %d: %x\n", channel, slotrank,
 		       lane, ctrl->timings[channel][slotrank].lanes[lane].timB);
 	}
+	return 0;
 }
 
 static int get_timB_high_adjust(u64 val)
@@ -2598,9 +2650,10 @@ static void write_op(ramctr_timing * ctrl, int channel)
  * In this mode the DRAM-chip samples the CLK on every DQS edge and feeds back the
  * sampled value on the data lanes (DQs).
  */
-static void write_training(ramctr_timing * ctrl)
+static int write_training(ramctr_timing * ctrl)
 {
 	int channel, slotrank, lane;
+	int err;
 
 	FOR_ALL_POPULATED_CHANNELS
 	    write32(DEFAULT_MCHBAR + 0x4008 + 0x400 * channel,
@@ -2633,8 +2686,11 @@ static void write_training(ramctr_timing * ctrl)
 	toggle_io_reset();
 
 	/* set any valid value for timB, it gets corrected later */
-	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS
-		discover_timB(ctrl, channel, slotrank);
+	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
+		err = discover_timB(ctrl, channel, slotrank);
+		if (err)
+			return err;
+	}
 
 	/* disable write leveling on all ranks */
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS
@@ -2683,8 +2739,11 @@ static void write_training(ramctr_timing * ctrl)
 		write32(DEFAULT_MCHBAR + 0x4288 + (channel << 10), 0);
 	}
 
-	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS
-		discover_timC(ctrl, channel, slotrank);
+	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
+		err = discover_timC(ctrl, channel, slotrank);
+		if (err)
+			return err;
+	}
 
 	FOR_ALL_POPULATED_CHANNELS
 		program_timings(ctrl, channel);
@@ -2700,6 +2759,7 @@ static void write_training(ramctr_timing * ctrl)
 		write32(DEFAULT_MCHBAR + 0x4080 + 0x400 * channel + 4 * lane,
 			0);
 	}
+	return 0;
 }
 
 static int test_320c(ramctr_timing * ctrl, int channel, int slotrank)
@@ -2868,7 +2928,7 @@ static void reprogram_320c(ramctr_timing * ctrl)
 
 #define MIN_C320C_LEN 13
 
-static int try_cmd_stretch(ramctr_timing * ctrl, int cmd_stretch)
+static int try_cmd_stretch(ramctr_timing *ctrl, int cmd_stretch)
 {
 	struct ram_rank_timings saved_timings[NUM_CHANNELS][NUM_SLOTRANKS];
 	int channel, slotrank;
@@ -2933,19 +2993,20 @@ static int try_cmd_stretch(ramctr_timing * ctrl, int cmd_stretch)
 				FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
 					ctrl->timings[channel][slotrank] = saved_timings[channel][slotrank];
 				}
-				return 0;
+				return MAKE_ERR;
 			}
 		}
 	}
-	return 1;
+	return 0;
 }
 
 /* Adjust CMD phase shift and try multiple command rates.
  * A command rate of 2T doubles the time needed for address and
  * command decode. */
-static void command_training(ramctr_timing * ctrl)
+static int command_training(ramctr_timing *ctrl)
 {
 	int channel;
+	int err;
 
 	FOR_ALL_POPULATED_CHANNELS {
 		fill_pattern5(ctrl, channel, 0);
@@ -2953,17 +3014,24 @@ static void command_training(ramctr_timing * ctrl)
 	}
 
 	/* try command rate 1T and 2T */
-	if (!try_cmd_stretch(ctrl, 0) && !try_cmd_stretch(ctrl, 2))
-		die("c320c discovery failed");
+	err = try_cmd_stretch(ctrl, 0);
+	if (err) {
+		err = try_cmd_stretch(ctrl, 2);
+		if (err) {
+			printk(BIOS_EMERG, "c320c discovery failed\n");
+			return err;
+		}
+	}
 
 	FOR_ALL_POPULATED_CHANNELS {
 		program_timings(ctrl, channel);
 	}
 
 	reprogram_320c(ctrl);
+	return 0;
 }
 
-static void discover_edges_real(ramctr_timing * ctrl, int channel, int slotrank,
+static int discover_edges_real(ramctr_timing *ctrl, int channel, int slotrank,
 				int *edges)
 {
 	int edge;
@@ -3036,18 +3104,23 @@ static void discover_edges_real(ramctr_timing * ctrl, int channel, int slotrank,
 		struct run rn =
 		    get_longest_zero_run(statistics[lane], MAX_EDGE_TIMING + 1);
 		edges[lane] = rn.middle;
-		if (rn.all)
-			die("edge discovery failed");
+		if (rn.all) {
+			printk(BIOS_EMERG, "edge discovery failed: %d, %d, %d\n",
+			       channel, slotrank, lane);
+			return MAKE_ERR;
+		}
 		printram("eval %d, %d, %d: %02x\n", channel, slotrank,
 		       lane, edges[lane]);
 	}
+	return 0;
 }
 
-static void discover_edges(ramctr_timing * ctrl)
+static int discover_edges(ramctr_timing *ctrl)
 {
 	int falling_edges[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
 	int rising_edges[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
 	int channel, slotrank, lane;
+	int err;
 
 	write32(DEFAULT_MCHBAR + 0x3400, 0);
 
@@ -3202,16 +3275,20 @@ static void discover_edges(ramctr_timing * ctrl)
 	printram("discover falling edges:\n[%x] = %x\n", 0x4eb0, 0x300);
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
-		discover_edges_real(ctrl, channel, slotrank,
+		err = discover_edges_real(ctrl, channel, slotrank,
 				    falling_edges[channel][slotrank]);
+		if (err)
+			return err;
 	}
 
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0x200);
 	printram("discover rising edges:\n[%x] = %x\n", 0x4eb0, 0x200);
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
-		discover_edges_real(ctrl, channel, slotrank,
+		err = discover_edges_real(ctrl, channel, slotrank,
 				    rising_edges[channel][slotrank]);
+		if (err)
+			return err;
 	}
 
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0);
@@ -3231,9 +3308,10 @@ static void discover_edges(ramctr_timing * ctrl)
 		write32(DEFAULT_MCHBAR + 0x4080 + 0x400 * channel + 4 * lane,
 			0);
 	}
+	return 0;
 }
 
-static void discover_edges_write_real(ramctr_timing * ctrl, int channel,
+static int discover_edges_write_real(ramctr_timing *ctrl, int channel,
 				      int slotrank, int *edges)
 {
 	int edge;
@@ -3345,38 +3423,46 @@ static void discover_edges_write_real(ramctr_timing * ctrl, int channel,
 				upper[lane] =
 					min(rn.end - ctrl->edge_offset[i], upper[lane]);
 				edges[lane] = (lower[lane] + upper[lane]) / 2;
-				if (rn.all || (lower[lane] > upper[lane]))
-					die("edge write discovery failed");
-
+				if (rn.all || (lower[lane] > upper[lane])) {
+					printk(BIOS_EMERG, "edge write discovery failed: %d, %d, %d\n",
+					       channel, slotrank, lane);
+					return MAKE_ERR;
+				}
 			}
 		}
 	}
 
 	write32(DEFAULT_MCHBAR + 0x3000, 0);
 	printram("CPA\n");
+	return 0;
 }
 
-static void discover_edges_write(ramctr_timing * ctrl)
+static int discover_edges_write(ramctr_timing *ctrl)
 {
 	int falling_edges[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
 	int rising_edges[NUM_CHANNELS][NUM_SLOTRANKS][NUM_LANES];
 	int channel, slotrank, lane;
+	int err;
 
 	/* FIXME: under some conditions (older chipsets?) vendor BIOS sets both edges to the same value.  */
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0x300);
 	printram("discover falling edges write:\n[%x] = %x\n", 0x4eb0, 0x300);
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
-		discover_edges_write_real(ctrl, channel, slotrank,
+		err = discover_edges_write_real(ctrl, channel, slotrank,
 					  falling_edges[channel][slotrank]);
+		if (err)
+			return err;
 	}
 
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0x200);
 	printram("discover rising edges write:\n[%x] = %x\n", 0x4eb0, 0x200);
 
 	FOR_ALL_CHANNELS FOR_ALL_POPULATED_RANKS {
-		discover_edges_write_real(ctrl, channel, slotrank,
+		err = discover_edges_write_real(ctrl, channel, slotrank,
 					  rising_edges[channel][slotrank]);
+		if (err)
+			return err;
 	}
 
 	write32(DEFAULT_MCHBAR + 0x4eb0, 0);
@@ -3395,6 +3481,7 @@ static void discover_edges_write(ramctr_timing * ctrl)
 		write32(DEFAULT_MCHBAR + 0x4080 + 0x400 * channel + 4 * lane,
 			0);
 	}
+	return 0;
 }
 
 static void test_timC_write(ramctr_timing *ctrl, int channel, int slotrank)
@@ -3447,7 +3534,7 @@ static void test_timC_write(ramctr_timing *ctrl, int channel, int slotrank)
 	wait_428c(channel);
 }
 
-static void discover_timC_write(ramctr_timing * ctrl)
+static int discover_timC_write(ramctr_timing *ctrl)
 {
 	const u8 rege3c_b24[3] = { 0, 0xf, 0x2f };
 	int i, pat;
@@ -3501,8 +3588,11 @@ static void discover_timC_write(ramctr_timing * ctrl)
 
 						rn = get_longest_zero_run(statistics,
 									  MAX_TIMC + 1);
-						if (rn.all)
-							die("timC write discovery failed");
+						if (rn.all) {
+							printk(BIOS_EMERG, "timC write discovery failed: %d, %d, %d\n",
+							       channel, slotrank, lane);
+							return MAKE_ERR;
+						}
 						printram("timC: %d, %d, %d: 0x%02x-0x%02x-0x%02x, 0x%02x-0x%02x\n",
 							 channel, slotrank, i, rn.start,
 							 rn.middle, rn.end,
@@ -3543,6 +3633,7 @@ static void discover_timC_write(ramctr_timing * ctrl)
 	FOR_ALL_POPULATED_CHANNELS {
 		program_timings(ctrl, channel);
 	}
+	return 0;
 }
 
 static void normalize_training(ramctr_timing * ctrl)
@@ -3577,13 +3668,17 @@ static void write_controller_mr(ramctr_timing * ctrl)
 	}
 }
 
-static void channel_test(ramctr_timing * ctrl)
+static int channel_test(ramctr_timing *ctrl)
 {
 	int channel, slotrank, lane;
 
+	slotrank = 0;
 	FOR_ALL_POPULATED_CHANNELS
-		if (read32(DEFAULT_MCHBAR + 0x42a0 + (channel << 10)) & 0xa000)
-			die("Mini channel test failed (1)\n");
+		if (read32(DEFAULT_MCHBAR + 0x42a0 + (channel << 10)) & 0xa000) {
+			printk(BIOS_EMERG, "Mini channel test failed (1): %d\n",
+			       channel);
+			return MAKE_ERR;
+		}
 	FOR_ALL_POPULATED_CHANNELS {
 		fill_pattern0(ctrl, channel, 0x12345678, 0x98765432);
 
@@ -3625,9 +3720,13 @@ static void channel_test(ramctr_timing * ctrl)
 		write32(DEFAULT_MCHBAR + 0x4284 + (channel << 10), 0x000c0001);
 		wait_428c(channel);
 		FOR_ALL_LANES
-			if (read32(DEFAULT_MCHBAR + 0x4340 + (channel << 10) + 4 * lane))
-				die("Mini channel test failed (2)\n");
+			if (read32(DEFAULT_MCHBAR + 0x4340 + (channel << 10) + 4 * lane)) {
+				printk(BIOS_EMERG, "Mini channel test failed (2): %d, %d, %d\n",
+				       channel, slotrank, lane);
+				return MAKE_ERR;
+			}
 	}
+	return 0;
 }
 
 static void set_scrambling_seed(ramctr_timing * ctrl)
@@ -3938,12 +4037,134 @@ static void restore_timings(ramctr_timing * ctrl)
 	write32(DEFAULT_MCHBAR + 0x4ea8, 0);
 }
 
-void init_dram_ddr3(spd_raw_data * spds, int mobile, int min_tck,
+static int try_init_dram_ddr3(ramctr_timing *ctrl, int fast_boot,
+		int me_uma_size)
+{
+	int err;
+
+	printk(BIOS_DEBUG, "Starting RAM training (%d).\n", fast_boot);
+
+	if (!fast_boot) {
+		/* Find fastest common supported parameters */
+		dram_find_common_params(ctrl);
+
+		dram_dimm_mapping(ctrl);
+	}
+
+	/* Set MCU frequency */
+	dram_freq(ctrl);
+
+	if (!fast_boot) {
+		/* Calculate timings */
+		dram_timing(ctrl);
+	}
+
+	/* Set version register */
+	MCHBAR32(0x5034) = 0xC04EB002;
+
+	/* Enable crossover */
+	dram_xover(ctrl);
+
+	/* Set timing and refresh registers */
+	dram_timing_regs(ctrl);
+
+	/* Power mode preset */
+	MCHBAR32(0x4e80) = 0x5500;
+
+	/* Set scheduler parameters */
+	MCHBAR32(0x4c20) = 0x10100005;
+
+	/* Set cpu specific register */
+	set_4f8c();
+
+	/* Clear IO reset bit */
+	MCHBAR32(0x5030) &= ~0x20;
+
+	/* Set MAD-DIMM registers */
+	dram_dimm_set_mapping(ctrl);
+	printk(BIOS_DEBUG, "Done dimm mapping\n");
+
+	/* Zone config */
+	dram_zones(ctrl, 1);
+
+	/* Set memory map */
+	dram_memorymap(ctrl, me_uma_size);
+	printk(BIOS_DEBUG, "Done memory map\n");
+
+	/* Set IO registers */
+	dram_ioregs(ctrl);
+	printk(BIOS_DEBUG, "Done io registers\n");
+
+	udelay(1);
+
+	if (fast_boot) {
+		restore_timings(ctrl);
+	} else {
+		/* Do jedec ddr3 reset sequence */
+		dram_jedecreset(ctrl);
+		printk(BIOS_DEBUG, "Done jedec reset\n");
+
+		/* MRS commands */
+		dram_mrscommands(ctrl);
+		printk(BIOS_DEBUG, "Done MRS commands\n");
+
+		/* Prepare for memory training */
+		prepare_training(ctrl);
+
+		err = read_training(ctrl);
+		if (err)
+			return err;
+
+		err = write_training(ctrl);
+		if (err)
+			return err;
+
+		printram("CP5a\n");
+
+		err = discover_edges(ctrl);
+		if (err)
+			return err;
+
+		printram("CP5b\n");
+
+		err = command_training(ctrl);
+		if (err)
+			return err;
+
+		printram("CP5c\n");
+
+		err = discover_edges_write(ctrl);
+		if (err)
+			return err;
+
+		err = discover_timC_write(ctrl);
+		if (err)
+			return err;
+
+		normalize_training(ctrl);
+	}
+
+	set_4008c(ctrl);
+
+	write_controller_mr(ctrl);
+
+	err = channel_test(ctrl);
+	if (err)
+		return err;
+
+	return 0;
+}
+
+void init_dram_ddr3(spd_raw_data *spds, int mobile, int min_tck,
 	int s3resume)
 {
 	int me_uma_size;
 	int cbmem_was_inited;
-	dimm_info info;
+	ramctr_timing ctrl;
+	int fast_boot;
+	struct mrc_data_container *mrc_cache;
+	ramctr_timing *ctrl_cached;
+	int err;
 
 	MCHBAR32(0x5f00) |= 1;
 
@@ -3971,128 +4192,61 @@ void init_dram_ddr3(spd_raw_data * spds, int mobile, int min_tck,
 		halt();
 	}
 
-	ramctr_timing ctrl;
-
 	memset(&ctrl, 0, sizeof (ctrl));
 
 	early_pch_init_native();
 	early_thermal_init();
 
-	ctrl.mobile = mobile;
-	ctrl.tCK = min_tck;
-
-	/* FIXME: for non-S3 we should be able to use timing caching with
-	   proper verification. Right now we use timings only for S3 case.
-	 */
-	if (s3resume) {
-		struct mrc_data_container *mrc_cache;
-
-		mrc_cache = find_current_mrc_cache();
-		if (!mrc_cache || mrc_cache->mrc_data_size < sizeof (ctrl)) {
+	/* try to find timings in MRC cache */
+	mrc_cache = find_current_mrc_cache();
+	if (!mrc_cache || (mrc_cache->mrc_data_size < sizeof(ctrl))) {
+		if (s3resume) {
 			/* Failed S3 resume, reset to come up cleanly */
 			outb(0x6, 0xcf9);
 			halt();
 		}
-		memcpy(&ctrl, mrc_cache->mrc_data, sizeof (ctrl));
-	}
-
-	if (!s3resume) {
-		/* Get DDR3 SPD data */
-		dram_find_spds_ddr3(spds, &info, &ctrl);
-
-		/* Find fastest common supported parameters */
-		dram_find_common_params(&info, &ctrl);
-
-		dram_dimm_mapping(&info, &ctrl);
-	}
-
-	/* Set MCU frequency */
-	dram_freq(&ctrl);
-
-	if (!s3resume) {
-		/* Calculate timings */
-		dram_timing(&ctrl);
-	}
-
-	/* Set version register */
-	MCHBAR32(0x5034) = 0xC04EB002;
-
-	/* Enable crossover */
-	dram_xover(&ctrl);
-
-	/* Set timing and refresh registers */
-	dram_timing_regs(&ctrl);
-
-	/* Power mode preset */
-	MCHBAR32(0x4e80) = 0x5500;
-
-	/* Set scheduler parameters */
-	MCHBAR32(0x4c20) = 0x10100005;
-
-	/* Set cpu specific register */
-	set_4f8c();
-
-	/* Clear IO reset bit */
-	MCHBAR32(0x5030) &= ~0x20;
-
-	/* Set MAD-DIMM registers */
-	dram_dimm_set_mapping(&ctrl);
-	printk(BIOS_DEBUG, "Done dimm mapping\n");
-
-	/* Zone config */
-	dram_zones(&ctrl, 1);
-
-	/* Set memory map */
-	dram_memorymap(&ctrl, me_uma_size);
-	printk(BIOS_DEBUG, "Done memory map\n");
-
-	/* Set IO registers */
-	dram_ioregs(&ctrl);
-	printk(BIOS_DEBUG, "Done io registers\n");
-
-	udelay(1);
-
-	if (s3resume) {
-		restore_timings(&ctrl);
+		ctrl_cached = NULL;
 	} else {
-		/* Do jedec ddr3 reset sequence */
-		dram_jedecreset(&ctrl);
-		printk(BIOS_DEBUG, "Done jedec reset\n");
-
-		/* MRS commands */
-		dram_mrscommands(&ctrl);
-		printk(BIOS_DEBUG, "Done MRS commands\n");
-
-		/* Prepare for memory training */
-		prepare_training(&ctrl);
-
-		read_training(&ctrl);
-		write_training(&ctrl);
-
-		printram("CP5a\n");
-
-		discover_edges(&ctrl);
-
-		printram("CP5b\n");
-
-		command_training(&ctrl);
-
-		printram("CP5c\n");
-
-		discover_edges_write(&ctrl);
-
-		discover_timC_write(&ctrl);
-
-		normalize_training(&ctrl);
+		ctrl_cached = (ramctr_timing *)mrc_cache->mrc_data;
 	}
 
-	set_4008c(&ctrl);
+	/* verify MRC cache for fast boot */
+	if (ctrl_cached) {
+		/* check SPD CRC16 to make sure the DIMMs haven't been replaced */
+		fast_boot = verify_crc16_spds_ddr3(spds, ctrl_cached);
+		if (!fast_boot)
+			printk(BIOS_DEBUG, "Stored timings CRC16 mismatch.\n");
+		if (!fast_boot && s3resume) {
+			/* Failed S3 resume, reset to come up cleanly */
+			outb(0x6, 0xcf9);
+			halt();
+		}
+	} else
+		fast_boot = 0;
 
-	write_controller_mr(&ctrl);
+	if (fast_boot) {
+		printk(BIOS_DEBUG, "Trying stored timings.\n");
+		memcpy(&ctrl, ctrl_cached, sizeof(ctrl));
 
-	if (!s3resume) {
-		channel_test(&ctrl);
+		err = try_init_dram_ddr3(&ctrl, fast_boot, me_uma_size);
+		if (err) {
+			/* no need to erase bad mrc cache here, it gets overritten on
+			 * successful boot. */
+			printk(BIOS_ERR, "Stored timings are invalid !\n");
+			fast_boot = 0;
+		}
 	}
+	if (!fast_boot) {
+		ctrl.mobile = mobile;
+		ctrl.tCK = min_tck;
+
+		/* Get DDR3 SPD data */
+		dram_find_spds_ddr3(spds, &ctrl);
+
+		err = try_init_dram_ddr3(&ctrl, fast_boot, me_uma_size);
+	}
+	if (err)
+		die("raminit failed");
 
 	/* FIXME: should be hardware revision-dependent.  */
 	write32(DEFAULT_MCHBAR + 0x5024, 0x00a030ce);
@@ -4106,7 +4260,7 @@ void init_dram_ddr3(spd_raw_data * spds, int mobile, int min_tck,
 	/* Zone config */
 	dram_zones(&ctrl, 0);
 
-	if (!s3resume)
+	if (!fast_boot)
 		quick_ram_check();
 
 	intel_early_me_status();
@@ -4116,7 +4270,7 @@ void init_dram_ddr3(spd_raw_data * spds, int mobile, int min_tck,
 	report_memory_config();
 
 	cbmem_was_inited = !cbmem_recovery(s3resume);
-	if (!s3resume)
+	if (!fast_boot)
 		save_timings(&ctrl);
 	if (s3resume && !cbmem_was_inited) {
 		/* Failed S3 resume, reset to come up cleanly */
@@ -4124,7 +4278,7 @@ void init_dram_ddr3(spd_raw_data * spds, int mobile, int min_tck,
 		halt();
 	}
 
-	fill_smbios17(&info, (1000 << 8) / ctrl.tCK);
+	fill_smbios17(&ctrl);
 }
 
 #define HOST_BRIDGE	PCI_DEVFN(0, 0)

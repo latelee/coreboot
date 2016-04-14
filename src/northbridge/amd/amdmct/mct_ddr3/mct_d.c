@@ -336,9 +336,8 @@ uint8_t is_ecc_enabled(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTs
 {
 	uint8_t ecc_enabled = 1;
 
-	if (!mctGet_NVbits(NV_ECC_CAP) || !mctGet_NVbits(NV_ECC)) {
-		return 0;
-	}
+	if (!pMCTstat->try_ecc)
+		ecc_enabled = 0;
 
 	if (pDCTstat->NodePresent && pDCTstat->DIMMValid) {
 		if (!(pDCTstat->Status & (1 << SB_ECCDIMMs))) {
@@ -2659,6 +2658,12 @@ static void mctAutoInitMCT_D(struct MCTStatStruc *pMCTstat,
 	uint8_t s3resume = acpi_is_wakeup_s3();
 
 restartinit:
+
+	if (!mctGet_NVbits(NV_ECC_CAP) || !mctGet_NVbits(NV_ECC))
+		pMCTstat->try_ecc = 0;
+	else
+		pMCTstat->try_ecc = 1;
+
 	mctInitMemGPIOs_A_D();		/* Set any required GPIOs*/
 	if (s3resume) {
 		printk(BIOS_DEBUG, "mctAutoInitMCT_D: mct_ForceNBPState0_En_Fam15\n");
@@ -2937,6 +2942,29 @@ restartinit:
 
 fatalexit:
 	die("mct_d: fatalexit");
+}
+
+void initialize_mca(uint8_t bsp, uint8_t suppress_errors) {
+	uint8_t node;
+	uint32_t mc4_status_high;
+	uint32_t mc4_status_low;
+
+	for (node = 0; node < MAX_NODES_SUPPORTED; node++) {
+		if (bsp && (node > 0))
+			break;
+
+		mc4_status_high = pci_read_config32(PCI_DEV(0, 0x18 + node, 3), 0x4c);
+		mc4_status_low = pci_read_config32(PCI_DEV(0, 0x18 + node, 3), 0x48);
+		if ((mc4_status_high & (0x1 << 31)) && (mc4_status_high != 0xffffffff)) {
+			if (!suppress_errors)
+				printk(BIOS_WARNING, "WARNING: MC4 Machine Check Exception detected on node %d!\n"
+					"Signature: %08x%08x\n", node, mc4_status_high, mc4_status_low);
+
+			/* Clear MC4 error status */
+			pci_write_config32(PCI_DEV(0, 0x18 + node, 3), 0x48, 0x0);
+			pci_write_config32(PCI_DEV(0, 0x18 + node, 3), 0x4c, 0x0);
+		}
+	}
 }
 
 static u8 ReconfigureDIMMspare_D(struct MCTStatStruc *pMCTstat,
@@ -6850,10 +6878,15 @@ static void mct_InitialMCT_D(struct MCTStatStruc *pMCTstat, struct DCTStatStruc 
 static u32 mct_NodePresent_D(void)
 {
 	u32 val;
-	if (is_fam15h())
-		val = 0x16001022;
-	else
+	if (is_fam15h()) {
+		if (is_model10_1f()) {
+			val = 0x14001022;
+		} else {
+			val = 0x16001022;
+		}
+	} else {
 		val = 0x12001022;
+	}
 	return val;
 }
 
@@ -8016,14 +8049,29 @@ void mct_SetDramConfigHi_D(struct MCTStatStruc *pMCTstat,
 
 	printk(BIOS_DEBUG, "mct_SetDramConfigHi_D: DramConfigHi:    %08x\n", DramConfigHi);
 
+	/* Prevent lockups on parity errors during initial DCT startup */
+	if (!pDCTstat->mca_config_backed_up) {
+		dword = Get_NB32(pDCTstat->dev_nbmisc, 0x44);
+		pDCTstat->sync_flood_on_dram_err = (dword >> 30) & 0x1;
+		pDCTstat->sync_flood_on_any_uc_err = (dword >> 21) & 0x1;
+		pDCTstat->sync_flood_on_uc_dram_ecc_err = (dword >> 2) & 0x1;
+		dword &= ~(0x1 << 30);
+		dword &= ~(0x1 << 21);
+		dword &= ~(0x1 << 2);
+		Set_NB32(pDCTstat->dev_nbmisc, 0x44, dword);
+		pDCTstat->mca_config_backed_up = 1;
+	}
+
 	/* Program the DRAM Configuration High register */
 	Set_NB32_DCT(dev, dct, 0x94, DramConfigHi);
 
 	if (is_fam15h()) {
 		/* Wait until F2x[1, 0]94[FreqChgInProg]=0. */
 		do {
+			printk(BIOS_DEBUG, "*");
 			dword = Get_NB32_DCT(pDCTstat->dev_dct, dct, 0x94);
 		} while (dword & (1 << FreqChgInProg));
+		printk(BIOS_DEBUG, "\n");
 
 		/* Program D18F2x9C_x0D0F_E006_dct[1:0][PllLockTime] = 0xf */
 		dword = Get_NB32_index_wait_DCT(pDCTstat->dev_dct, dct, index_reg, 0x0d0fe006);
@@ -8031,6 +8079,10 @@ void mct_SetDramConfigHi_D(struct MCTStatStruc *pMCTstat,
 		dword |= 0x0000000f;
 		Set_NB32_index_wait_DCT(pDCTstat->dev_dct, dct, index_reg, 0x0d0fe006, dword);
 	}
+
+	/* Clear MC4 error status */
+	pci_write_config32(pDCTstat->dev_nbmisc, 0x48, 0x0);
+	pci_write_config32(pDCTstat->dev_nbmisc, 0x4c, 0x0);
 
 	printk(BIOS_DEBUG, "%s: Done\n", __func__);
 }

@@ -14,6 +14,7 @@ payloads/external/GRUB2/grub2/
 payloads/external/SeaBIOS/seabios/
 payloads/external/U-Boot/u-boot/
 payloads/external/Memtest86Plus/memtest86plus/
+payloads/external/iPXE/ipxe/
 util/crossgcc/acpica-unix-*/
 util/crossgcc/binutils-*/
 util/crossgcc/build-*BINUTILS/
@@ -96,8 +97,7 @@ util/nvramtool/.dependencies
 util/nvramtool/nvramtool
 util/optionlist/Options.wiki
 util/romcc/romcc
-util/romcc/tests/fail_test*.S
-util/romcc/tests/*.S-O2-mmmx
+util/romcc/build
 util/runfw/googlesnow
 util/superiotool/superiotool
 util/vgabios/testbios

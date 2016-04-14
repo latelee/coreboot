@@ -1,7 +1,8 @@
 /*
  * This file is part of the coreboot project.
  *
- * Copyright 2014 Rockchip Inc.
+ * Copyright (C) 2011 The Chromium OS Authors. All rights reserved.
+ * Copyright (C) 2014 Vladimir Serbinenko
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,9 +14,13 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __SOC_ROCKCHIP_RK3288_PWM_H__
-#define __SOC_ROCKCHIP_RK3288_PWM_H__
+#ifndef T420_THERMAL_H
+#define T420_THERMAL_H
 
-void pwm_init(u32 id, u32 period_ns, u32 duty_ns);
+/* Temperature which OS will shutdown at */
+#define CRITICAL_TEMPERATURE	100
+
+/* Temperature which OS will throttle CPU */
+#define PASSIVE_TEMPERATURE	90
 
 #endif

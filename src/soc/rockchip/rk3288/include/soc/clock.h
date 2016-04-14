@@ -39,6 +39,8 @@ enum apll_frequencies {
 #define PERI_HCLK_HZ	(148500*KHz)
 #define PERI_PCLK_HZ	(74250*KHz)
 
+#define PWM_CLOCK_HZ	PD_BUS_PCLK_HZ
+
 void rkclk_init(void);
 void rkclk_configure_spi(unsigned int bus, unsigned int hz);
 void rkclk_ddr_reset(u32 ch, u32 ctl, u32 phy);
@@ -53,4 +55,6 @@ int rkclk_configure_vop_dclk(u32 vop_id, u32 dclk_hz);
 void rkclk_configure_edp(void);
 void rkclk_configure_hdmi(void);
 int rkclk_was_watchdog_reset(void);
+unsigned rkclk_i2c_clock_for_bus(unsigned bus);
+
 #endif	/* __SOC_ROCKCHIP_RK3288_CLOCK_H__ */

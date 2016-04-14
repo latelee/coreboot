@@ -300,7 +300,8 @@ struct MCTStatStruc {
 	u32 SysLimit;		/* LIMIT[39:8] (system address)*/
 	uint32_t TSCFreq;
 	uint16_t nvram_checksum;
-} __attribute__((packed));
+	uint8_t try_ecc;
+} __attribute__((packed, aligned(4)));
 
 /*=============================================================================
 	Global MCT Configuration Status Word (GStatus)
@@ -329,7 +330,7 @@ struct amd_spd_node_data {
 	uint64_t nvram_spd_hash[MAX_DIMMS_SUPPORTED];	/* [DIMM] */
 	uint8_t nvram_spd_match;
 	uint8_t nvram_memclk[2];			/* [channel] */
-} __attribute__((packed));
+} __attribute__((packed, aligned(4)));
 
 struct DCTStatStruc {		/* A per Node structure*/
 /* DCTStatStruct_F -  start */
@@ -580,6 +581,12 @@ struct DCTStatStruc {		/* A per Node structure*/
 	uint8_t NbPstateThreshold;
 	uint8_t NbPstateHi;
 
+	/* MCA backup variables */
+	uint8_t mca_config_backed_up;
+	uint8_t sync_flood_on_dram_err;
+	uint8_t sync_flood_on_any_uc_err;
+	uint8_t sync_flood_on_uc_dram_ecc_err;
+
 	/* New for LB Support */
 	u8 NodePresent;
 	u32 dev_host;
@@ -629,7 +636,7 @@ struct DCTStatStruc {		/* A per Node structure*/
 	uint32_t DimmSerialNumber[MAX_DIMMS_SUPPORTED];
 
 	struct amd_spd_node_data spd_data;
-} __attribute__((packed));
+} __attribute__((packed, aligned(4)));
 
 struct amd_s3_persistent_mct_channel_data {
 	/* Stage 1 (1 dword) */
@@ -790,19 +797,19 @@ struct amd_s3_persistent_mct_channel_data {
 	uint32_t f2x9cx0d0fe00a;
 
 	/* TOTAL: 343 dwords */
-} __attribute__((packed));
+} __attribute__((packed, aligned(4)));
 
 struct amd_s3_persistent_node_data {
 	uint32_t node_present;
 	uint64_t spd_hash[MAX_DIMMS_SUPPORTED];
 	uint8_t memclk[2];
 	struct amd_s3_persistent_mct_channel_data channel[2];
-} __attribute__((packed));
+} __attribute__((packed, aligned(4)));
 
 struct amd_s3_persistent_data {
 	struct amd_s3_persistent_node_data node[MAX_NODES_SUPPORTED];
 	uint16_t nvram_checksum;
-} __attribute__((packed));
+} __attribute__((packed, aligned(4)));
 
 /*===============================================================================
 	Local Error Status Codes (DCTStatStruc.ErrCode)
@@ -969,7 +976,7 @@ struct amdmct_memory_info {
 	struct DCTStatStruc dct_stat[MAX_NODES_SUPPORTED];
 	uint16_t ecc_enabled;
 	uint16_t ecc_scrub_rate;
-} __attribute__((packed));
+} __attribute__((packed, aligned(4)));
 
 u32 Get_NB32(u32 dev, u32 reg);
 void Set_NB32(u32 dev, u32 reg, u32 val);
@@ -985,6 +992,7 @@ u32 SetupDqsPattern_1PassA(u8 Pass);
 u32 SetupDqsPattern_1PassB(u8 Pass);
 u8 mct_Get_Start_RcvrEnDly_1Pass(u8 Pass);
 u16 mct_Average_RcvrEnDly_Pass(struct DCTStatStruc *pDCTstat, u16 RcvrEnDly, u16 RcvrEnDlyLimit, u8 Channel, u8 Receiver, u8 Pass);
+void initialize_mca(uint8_t bsp, uint8_t suppress_errors);
 void CPUMemTyping_D(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstatA);
 void UMAMemTyping_D(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstatA);
 uint64_t mctGetLogicalCPUID(u32 Node);

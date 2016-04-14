@@ -23,6 +23,7 @@
 #include <device/resource.h>
 #include <string.h>
 #include <soc/iomap.h>
+#include <soc/intel/common/mrc_cache.h>
 #include <soc/pci_devs.h>
 #include <soc/northbridge.h>
 #include <soc/romstage.h>
@@ -45,13 +46,12 @@ static void soc_early_romstage_init(void)
 	/* Set MCH base address and enable bit */
 	pci_write_config32(NB_DEV_ROOT, MCHBAR, MCH_BASE_ADDR | 1);
 
-	/* Set PMC base address */
+	/* Set PMC base addresses and enable decoding. */
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_0, PMC_BAR0);
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_1, 0);	/* 64-bit BAR */
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_2, PMC_BAR1);
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_3, 0);	/* 64-bit BAR */
-
-	/* PMIO BAR4 was already set earlier, hence the COMMAND_IO below */
+	pci_write_config16(pmc, PCI_BASE_ADDRESS_4, ACPI_PMIO_BASE);
 	pci_write_config32(pmc, PCI_COMMAND,
 				PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
 				PCI_COMMAND_MASTER);
@@ -63,12 +63,6 @@ static void soc_early_romstage_init(void)
 static void disable_watchdog(void)
 {
 	uint32_t reg;
-	device_t dev = PMC_DEV;
-
-	/* Open up an IO window */
-	pci_write_config16(dev, PCI_BASE_ADDRESS_4, ACPI_PMIO_BASE);
-	pci_write_config32(dev, PCI_COMMAND,
-			   PCI_COMMAND_MASTER | PCI_COMMAND_IO);
 
 	/* Stop TCO timer */
 	reg = inl(ACPI_PMIO_BASE + 0x68);
@@ -78,16 +72,16 @@ static void disable_watchdog(void)
 
 asmlinkage void car_stage_entry(void)
 {
-	void *hob_list_ptr;
-	struct range_entry fsp_mem;
-	struct range_entry reg_car;
+	void *hob_list_ptr, *mrc_data;
+	struct range_entry fsp_mem, reg_car;
 	struct postcar_frame pcf;
+	size_t  mrc_data_size;
 
 	printk(BIOS_DEBUG, "Starting romstage...\n");
 
-	disable_watchdog();
-
 	soc_early_romstage_init();
+
+	disable_watchdog();
 
 	/* Make sure the blob does not override our data in CAR */
 	range_entry_init(&reg_car, (uintptr_t)_car_relocatable_data_end,
@@ -110,6 +104,15 @@ asmlinkage void car_stage_entry(void)
 
 	/* Now that CBMEM is up, save the list so ramstage can use it */
 	fsp_save_hob_list(hob_list_ptr);
+
+	/* Save MRC Data to CBMEM */
+	if (IS_ENABLED(CONFIG_CACHE_MRC_SETTINGS))
+	{
+		/* TODO: treat MRC data as const */
+		mrc_data = (void*) fsp_find_nv_storage_data(&mrc_data_size);
+		if (mrc_data && mrc_cache_stash_data(mrc_data, mrc_data_size) < 0)
+			printk(BIOS_ERR, "Failed to stash MRC data\n");
+	}
 
 	if (postcar_frame_init(&pcf, 1*KiB))
 		die("Unable to initialize postcar frame.\n");
@@ -134,6 +137,9 @@ static void fill_console_params(struct FSPM_UPD *mupd)
 
 void platform_fsp_memory_init_params_cb(struct FSPM_UPD *mupd)
 {
+	const struct mrc_saved_data *mrc_cache;
+	struct FSP_M_ARCH_UPD *arch_upd = &mupd->FspmArchUpd;
+
 	fill_console_params(mupd);
 	mainboard_memory_init_params(mupd);
 
@@ -154,6 +160,18 @@ void platform_fsp_memory_init_params_cb(struct FSPM_UPD *mupd)
 	 */
 	mupd->FspmArchUpd.StackBase = _car_region_end -
 					mupd->FspmArchUpd.StackSize;
+
+	arch_upd->Bootmode = FSP_BOOT_WITH_FULL_CONFIGURATION;
+
+	if (IS_ENABLED(CONFIG_CACHE_MRC_SETTINGS)) {
+		if (!mrc_cache_get_current_with_version(&mrc_cache, 0)) {
+			/* MRC cache found */
+			arch_upd->NvsBufferPtr = (void *)mrc_cache->data;
+			arch_upd->Bootmode = FSP_BOOT_ASSUMING_NO_CONFIGURATION_CHANGES;
+			printk(BIOS_DEBUG, "MRC cache found, size %x\n", mrc_cache->size);
+		} else
+			printk(BIOS_DEBUG, "MRC cache was not found\n");
+	}
 }
 
 __attribute__ ((weak))

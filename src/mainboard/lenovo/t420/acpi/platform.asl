@@ -1,7 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
- * Copyright 2014 Rockchip Inc.
+ * Copyright (C) 2011-2012 The Chromium OS Authors. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,11 +13,23 @@
  * GNU General Public License for more details.
  */
 
-#ifndef __SOC_ROCKCHIP_RK3288_PMIC_H__
-#define __SOC_ROCKCHIP_RK3288_PMIC_H__
+/* The _PTS method (Prepare To Sleep) is called before the OS is
+ * entering a sleep state. The sleep state number is passed in Arg0
+ */
 
-void rk808_configure_switch(int sw, int enabled);
-void rk808_configure_ldo(int ldo, int millivolts);
-void rk808_configure_buck(int buck, int millivolts);
+Method(_PTS,1)
+{
+	\_SB.PCI0.LPCB.EC.RADI(0)
+}
 
-#endif
+/* The _WAK method is called on system wakeup */
+
+Method(_WAK,1)
+{
+	/* ME may not be up yet. */
+	Store (0, \_TZ.MEB1)
+	Store (0, \_TZ.MEB2)
+
+	/* Not implemented. */
+	Return(Package(){0,0})
+}

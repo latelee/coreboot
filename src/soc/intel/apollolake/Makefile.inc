@@ -11,6 +11,7 @@ subdirs-y += ../../../cpu/x86/cache
 bootblock-y += bootblock/bootblock.c
 bootblock-y += bootblock/cache_as_ram.S
 bootblock-y += bootblock/bootblock.c
+bootblock-y += car.c
 bootblock-y += gpio.c
 bootblock-y += mmap_boot.c
 bootblock-y += placeholders.c
@@ -18,11 +19,13 @@ bootblock-y += tsc_freq.c
 bootblock-$(CONFIG_SOC_UART_DEBUG) += uart_early.c
 
 romstage-y += placeholders.c
+romstage-y += car.c
 romstage-$(CONFIG_PLATFORM_USES_FSP2_0) += romstage.c
 romstage-y += gpio.c
 romstage-$(CONFIG_SOC_UART_DEBUG) += uart_early.c
 romstage-y += memmap.c
 romstage-y += mmap_boot.c
+romstage-y += tsc_freq.c
 
 smm-y += placeholders.c
 
@@ -32,15 +35,19 @@ ramstage-y += chip.c
 ramstage-y += placeholders.c
 ramstage-y += gpio.c
 ramstage-$(CONFIG_SOC_UART_DEBUG) += uart_early.c
+ramstage-y += lpc.c
 ramstage-y += memmap.c
 ramstage-y += mmap_boot.c
 ramstage-y += uart.c
 ramstage-y += northbridge.c
+ramstage-y += spi.c
+ramstage-y += tsc_freq.c
 
 postcar-y += exit_car.S
 postcar-y += memmap.c
 postcar-y += mmap_boot.c
 postcar-$(CONFIG_SOC_UART_DEBUG) += uart_early.c
+postcar-y += tsc_freq.c
 
 CPPFLAGS_common += -I$(src)/soc/intel/apollolake/include
 
