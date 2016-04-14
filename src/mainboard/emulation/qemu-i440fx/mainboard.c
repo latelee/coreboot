@@ -78,6 +78,6 @@ static void mainboard_i440fx_chip_init(void *chip_info)
 // 从static.c文件看，这个是root设备
 struct chip_operations mainboard_ops = {
 	CHIP_NAME("Late Lee qemu i440fx soc")
-	.enable_dev = mainboard_i440fx_enable,
+	.enable_dev = mainboard_i440fx_enable, // 在dev_enumerate函数中调用
 	.init = mainboard_i440fx_chip_init, // 在dev_initialize_chips函数中调用
 };

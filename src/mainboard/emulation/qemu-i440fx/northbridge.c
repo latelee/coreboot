@@ -228,8 +228,8 @@ static int qemu_get_smbios_data(device_t dev, int *handle, unsigned long *curren
 }
 #endif
 static struct device_operations pci_domain_ops = {
-	.read_resources		= cpu_pci_domain_read_resources,
-	.set_resources		= cpu_pci_domain_set_resources,
+	.read_resources		= cpu_pci_domain_read_resources, // 读资源调用此函数
+	.set_resources		= cpu_pci_domain_set_resources, // 设置资源调用此函数
 	.enable_resources	= NULL,
 	.init			= NULL,
 	.scan_bus		= pci_domain_scan_bus, // 扫描总线

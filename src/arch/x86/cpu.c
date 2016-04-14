@@ -312,14 +312,13 @@ void cpu_initialize(unsigned int index)
 	// 打印CPU，如qemu会打印:QEMU Virtual CPU version 2.0.0
 	printk(BIOS_INFO, "LLDEBUG CPU: %s.\n", processor_name);
 
-    //halt();
 	/* Lookup the cpu's operations */
-	set_cpu_ops(cpu);
+	set_cpu_ops(cpu); // 设置操作函数
 
 	if(!cpu->ops) {
 		/* mask out the stepping and try again */
 		cpu->device -= c.x86_mask;
-		set_cpu_ops(cpu); // 设置操作函数
+		set_cpu_ops(cpu);
 		cpu->device += c.x86_mask;
 		if(!cpu->ops) die("Unknown cpu");
 		printk(BIOS_DEBUG, "Using generic cpu ops (good)\n");

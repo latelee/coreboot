@@ -1039,14 +1039,16 @@ void dev_configure(void)
 	 */
 
 	/* Read the resources for the entire tree. */
-
+	// 先读一次
 	printk(BIOS_INFO, "Reading resources...\n");
 	read_resources(root->link_list);
 	printk(BIOS_INFO, "Done reading resources.\n");
 
+	// 打印设备树的资源
 	print_resource_tree(root, BIOS_SPEW, "After reading.");
 
 	/* Compute resources for all domains. */
+	// 计算资源
 	for (child = root->link_list->children; child; child = child->sibling) {
 		if (!(child->path.type == DEVICE_PATH_DOMAIN))
 			continue;
@@ -1070,7 +1072,7 @@ void dev_configure(void)
 	/* For all domains. */
 	for (child = root->link_list->children; child; child=child->sibling)
 		if (child->path.type == DEVICE_PATH_DOMAIN)
-			avoid_fixed_resources(child);
+			avoid_fixed_resources(child); // 此函数作用? 感觉是对范围的限制
 
 	/* Store the computed resource allocations into device registers ... */
 	printk(BIOS_INFO, "Setting resources...\n");
@@ -1078,6 +1080,7 @@ void dev_configure(void)
 		if (!(child->path.type == DEVICE_PATH_DOMAIN))
 			continue;
 		post_log_path(child);
+		// 分mem和io两种资源
 		for (res = child->resource_list; res; res = res->next) {
 			if (res->flags & IORESOURCE_FIXED)
 				continue;

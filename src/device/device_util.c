@@ -727,6 +727,7 @@ void disable_children(struct bus *bus)
 	}
 }
 
+// 输出设备树上资源
 static void resource_tree(struct device *root, int debug_level, int depth)
 {
 	int i = 0;
@@ -755,7 +756,7 @@ static void resource_tree(struct device *root, int debug_level, int depth)
 
 	for (link = root->link_list; link; link = link->next) {
 		for (child = link->children; child; child = child->sibling)
-			resource_tree(child, debug_level, depth + 1);
+			resource_tree(child, debug_level, depth + 1); // 递归调用本函数
 	}
 }
 
