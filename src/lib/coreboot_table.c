@@ -19,6 +19,7 @@
 #include <console/uart.h>
 #include <ip_checksum.h>
 #include <boot/coreboot_tables.h>
+#include <boot/tables.h>
 #include <boot_device.h>
 #include <string.h>
 #include <version.h>
@@ -445,33 +446,27 @@ static unsigned long lb_table_fini(struct lb_header *head)
 	return (unsigned long)rec + rec->size;
 }
 
-unsigned long write_coreboot_table(
-	unsigned long low_table_start, unsigned long low_table_end,
-	unsigned long rom_table_start, unsigned long rom_table_end)
+size_t write_coreboot_forwarding_table(uintptr_t entry, uintptr_t target)
 {
 	struct lb_header *head;
 
-	if (low_table_start || low_table_end) {
-		printk(BIOS_DEBUG, "Writing table forward entry at 0x%08lx\n",
-				low_table_end);
-		head = lb_table_init(low_table_end);
-		lb_forward(head, (struct lb_header*)rom_table_end);
+	printk(BIOS_DEBUG, "Writing table forward entry at 0x%p\n",
+		(void *)entry);
 
-		low_table_end = (unsigned long) lb_table_fini(head);
-		printk(BIOS_DEBUG, "Table forward entry ends at 0x%08lx.\n",
-			low_table_end);
-		low_table_end = ALIGN(low_table_end, 4096);
-		printk(BIOS_DEBUG, "... aligned to 0x%08lx\n", low_table_end);
-	}
+	head = lb_table_init(entry);
+	lb_forward(head, (struct lb_header*)target);
+
+	return (uintptr_t)lb_table_fini(head) - entry;
+}
+
+static uintptr_t write_coreboot_table(uintptr_t rom_table_end)
+{
+	struct lb_header *head;
 
 	printk(BIOS_DEBUG, "Writing coreboot table at 0x%08lx\n",
-		rom_table_end);
+		(long)rom_table_end);
 
 	head = lb_table_init(rom_table_end);
-	rom_table_end = (unsigned long)head;
-	printk(BIOS_DEBUG, "rom_table_end = 0x%08lx\n", rom_table_end);
-	rom_table_end = ALIGN(rom_table_end, (64 * 1024));
-	printk(BIOS_DEBUG, "... aligned to 0x%08lx\n", rom_table_end);
 
 #if CONFIG_USE_OPTION_TABLE
 	{
@@ -492,22 +487,6 @@ unsigned long write_coreboot_table(
 
 	/* Initialize the memory map at boot time. */
 	bootmem_init();
-
-	if (low_table_start || low_table_end) {
-		uint64_t size = low_table_end - low_table_start;
-		/* Record the mptable and the the lb_table.
-		 * (This will be adjusted later)  */
-		bootmem_add_range(low_table_start, size, LB_MEM_TABLE);
-	}
-
-	/* Record the pirq table, acpi tables, and maybe the mptable. However,
-	 * these only need to be added when the rom_table is sitting below
-	 * 1MiB. If it isn't that means high tables are being written.
-	 * The code below handles high tables correctly. */
-	if (rom_table_end <= (1 << 20)) {
-		uint64_t size = rom_table_end - rom_table_start;
-		bootmem_add_range(rom_table_start, size, LB_MEM_TABLE);
-	}
 
 	/* No other memory areas can be added after the memory table has been
 	 * committed as the entries won't show up in the serialize mem table. */
@@ -574,4 +553,36 @@ unsigned long write_coreboot_table(
 
 	/* Remember where my valid memory ranges are */
 	return lb_table_fini(head);
+}
+
+void write_tables(void)
+{
+	uintptr_t cbtable_start;
+	uintptr_t cbtable_end;
+	size_t cbtable_size;
+	const size_t max_table_size = CONFIG_COREBOOT_TABLE_SIZE;
+
+	cbtable_start = (uintptr_t)cbmem_add(CBMEM_ID_CBTABLE, max_table_size);
+
+	if (!cbtable_start) {
+		printk(BIOS_ERR, "Could not add CBMEM for coreboot table.\n");
+		return;
+	}
+
+	/* Add architecture specific tables. */
+	arch_write_tables(cbtable_start);
+
+	/* Write the coreboot table. */
+	cbtable_end = write_coreboot_table(cbtable_start);
+	cbtable_size = cbtable_end - cbtable_start;
+
+	if (cbtable_size > max_table_size) {
+		printk(BIOS_ERR, "%s: coreboot table didn't fit (%zx/%zx)\n",
+			__func__, cbtable_size, max_table_size);
+	}
+
+	printk(BIOS_DEBUG, "coreboot table: %zd bytes.\n", cbtable_size);
+
+	/* Print CBMEM sections */
+	cbmem_list();
 }

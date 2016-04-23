@@ -432,6 +432,7 @@ source "src/superio/*/Kconfig"
 comment "Embedded Controllers"
 source "src/ec/acpi/Kconfig"
 source "src/ec/*/*/Kconfig"
+# FIXME move to vendorcode
 source "src/drivers/intel/fsp1_0/Kconfig"
 
 source "src/southbridge/intel/common/firmware/Kconfig"
@@ -445,6 +446,7 @@ source "src/device/Kconfig"
 
 menu "Generic Drivers"
 source "src/drivers/*/Kconfig"
+source "src/drivers/*/*/Kconfig"
 endmenu
 
 config RTC
@@ -655,6 +657,15 @@ config ACPI_NHLT
 	default n
 	help
 	  Build support for NHLT (non HD Audio) ACPI table generation.
+
+
+config COREBOOT_TABLE_SIZE
+	hex
+	default 0x8000 if ARCH_X86
+	default 0x2000 if !ARCH_X86
+	help
+	  The amount of memory to reserve for the coreboot tables in
+	  cbmem.
 
 #These Options are here to avoid "undefined" warnings.
 #The actual selection and help texts are in the following menu.

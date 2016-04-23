@@ -27,6 +27,12 @@ fi
 TMPFILE=""
 XGCCPATH=$1
 
+# payloads under payloads/external crossgcc path
+if [ -d "$(pwd)/../../../../util/crossgcc/xgcc/bin/" ]
+then
+	XGCCPATH=${XGCCPATH:-"$(pwd)/../../../../util/crossgcc/xgcc/bin/"}
+fi
+
 # libpayload crossgcc path
 if [ -d "$(pwd)/../../util/crossgcc/xgcc/bin/" ]
 then
@@ -51,7 +57,7 @@ clean_up() {
 }
 
 # Create temporary file(s).
-TMPFILE="$(mktemp /tmp/temp.XXXX 2>/dev/null || echo /tmp/temp.78gOIUGz)"
+TMPFILE="$(mktemp /tmp/temp.XXXXXX 2>/dev/null || echo /tmp/temp.coreboot.$RANDOM)"
 touch "$TMPFILE"
 trap clean_up EXIT
 

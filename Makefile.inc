@@ -22,6 +22,7 @@ CONFIG_FMDFILE:=$(call strip_quotes,$(CONFIG_FMDFILE))
 
 #######################################################################
 # misleadingly named, this is the coreboot version
+ifeq ($(KERNELVERSION),)
 ifeq ($(BUILD_TIMELESS),1)
 export KERNELVERSION := TIMELESS
 else
@@ -30,6 +31,7 @@ export KERNELVERSION := $(strip $(if $(GIT),\
 	$(if $(wildcard $(top)/.coreboot-version),\
 		$(shell cat $(top)/.coreboot-version),\
 		coreboot-unknown$(KERNELREVISION))))
+endif
 endif
 
 #######################################################################
@@ -73,7 +75,9 @@ PHONY+= clean-abuild coreboot lint lint-stable build-dirs build_complete
 subdirs-y := src/lib src/commonlib/ src/console src/device src/acpi
 subdirs-y += src/ec/acpi $(wildcard src/ec/*/*) $(wildcard src/southbridge/*/*)
 subdirs-y += $(wildcard src/soc/*/*) $(wildcard src/northbridge/*/*)
-subdirs-y += src/superio $(wildcard src/drivers/*) src/cpu src/vendorcode
+subdirs-y += src/superio
+subdirs-y += $(wildcard src/drivers/*) $(wildcard src/drivers/*/*)
+subdirs-y += src/cpu src/vendorcode
 subdirs-y += util/cbfstool util/sconfig util/nvramtool util/broadcom
 subdirs-y += util/futility util/marvell
 subdirs-y += $(wildcard src/arch/*)
@@ -174,12 +178,15 @@ ifeq ($(CONFIG_COVERAGE),y)
 ramstage-c-ccopts += -fprofile-arcs -ftest-coverage
 endif
 
+ifneq ($(UPDATED_SUBMODULES),1)
 # try to fetch non-optional submodules if the source is under git
 forgetthis:=$(if $(GIT),$(shell git submodule update --init))
 ifeq ($(CONFIG_USE_BLOBS),y)
 # this is necessary because 3rdparty/blobs is update=none, and so is ignored
 # unless explicitly requested and enabled through --checkout
 forgetthis:=$(if $(GIT),$(shell git submodule update --init --checkout 3rdparty/blobs))
+endif
+export UPDATED_SUBMODULES:=1
 endif
 
 ramstage-c-deps:=$$(OPTION_TABLE_H)
@@ -741,18 +748,6 @@ $(obj)/coreboot.pre: $$(prebuilt-files) $(CBFSTOOL)
 	$(prebuild-files) true
 	mv $@.tmp $@
 endif # ifneq ($(CONFIG_UPDATE_IMAGE),y)
-
-ifeq ($(CONFIG_PAYLOAD_LINUX),y)
-ifneq ($(strip $(call strip_quotes,$(CONFIG_LINUX_COMMAND_LINE))),)
-      ADDITIONAL_PAYLOAD_CONFIG+=-C $(CONFIG_LINUX_COMMAND_LINE)
-endif
-ifneq ($(strip $(call strip_quotes,$(CONFIG_LINUX_INITRD))),)
-      ADDITIONAL_PAYLOAD_CONFIG+=-I $(CONFIG_LINUX_INITRD)
-endif
-endif
-ifneq ($(strip $(call strip_quotes,$(CONFIG_PAYLOAD_OPTIONS))),)
-      ADDITIONAL_PAYLOAD_CONFIG+=$(strip $(call strip_quotes,$(CONFIG_PAYLOAD_OPTIONS)))
-endif
 
 ifeq ($(CONFIG_HAVE_REFCODE_BLOB),y)
 REFCODE_BLOB=$(obj)/refcode.rmod

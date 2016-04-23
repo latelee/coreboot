@@ -17,6 +17,7 @@
 
 #include <console/console.h>
 #include <cpu/cpu.h>
+#include <bootmem.h>
 #include <boot/tables.h>
 #include <boot/coreboot_tables.h>
 #include <arch/pirq_routing.h>
@@ -26,28 +27,10 @@
 #include <cbmem.h>
 #include <smbios.h>
 
-void write_tables(void)
+static unsigned long write_pirq_table(unsigned long rom_table_end)
 {
-	unsigned long low_table_start, low_table_end;
-	unsigned long rom_table_start, rom_table_end;
-
-	/* Even if high tables are configured, some tables are copied both to
-	 * the low and the high area, so payloads and OSes don't need to know
-	 * about the high tables.
-	 */
 	unsigned long high_table_pointer;
 
-	rom_table_start = 0xf0000;
-	rom_table_end =   0xf0000;
-
-	/* Start low addr at 0x500, so we don't run into conflicts with the BDA
-	 * in case our data structures grow beyond 0x400. Only GDT
-	 * and the coreboot table use low_tables.
-	 */
-	low_table_start = 0;
-	low_table_end = 0x500;
-
-#if CONFIG_GENERATE_PIRQ_TABLE
 #define MAX_PIRQ_TABLE_SIZE (4 * 1024)
 	post_code(0x9a);
 
@@ -71,9 +54,13 @@ void write_tables(void)
 				new_high_table_pointer - high_table_pointer);
 	}
 
-#endif
+	return rom_table_end;
+}
 
-#if CONFIG_GENERATE_MP_TABLE
+static unsigned long write_mptable(unsigned long rom_table_end)
+{
+	unsigned long high_table_pointer;
+
 #define MAX_MP_TABLE_SIZE (4 * 1024)
 	post_code(0x9b);
 
@@ -94,9 +81,14 @@ void write_tables(void)
 		printk(BIOS_DEBUG, "MP table: %ld bytes.\n",
 				new_high_table_pointer - high_table_pointer);
 	}
-#endif /* CONFIG_GENERATE_MP_TABLE */
 
-#if CONFIG_HAVE_ACPI_TABLES
+	return rom_table_end;
+}
+
+static unsigned long write_acpi_table(unsigned long rom_table_end)
+{
+	unsigned long high_table_pointer;
+
 #define MAX_ACPI_SIZE (144 * 1024)
 
 	post_code(0x9c);
@@ -155,9 +147,15 @@ void write_tables(void)
 		rom_table_end = ALIGN(rom_table_end, 1024);
 	}
 
-#endif
+	return rom_table_end;
+}
+
+static unsigned long write_smbios_table(unsigned long rom_table_end)
+{
+	unsigned long high_table_pointer;
+
 #define MAX_SMBIOS_SIZE 2048
-#if CONFIG_GENERATE_SMBIOS_TABLES
+
 	high_table_pointer = (unsigned long)cbmem_add(CBMEM_ID_SMBIOS, MAX_SMBIOS_SIZE);
 	if (high_table_pointer) {
 		unsigned long new_high_table_pointer;
@@ -177,41 +175,46 @@ void write_tables(void)
 		printk(BIOS_DEBUG, "SMBIOS size %ld bytes\n", new_rom_table_end - rom_table_end);
 		rom_table_end = ALIGN(new_rom_table_end, 16);
 	}
-#endif
 
-	post_code(0x9e);
+	return rom_table_end;
+}
 
-#define MAX_COREBOOT_TABLE_SIZE (32 * 1024)
-	post_code(0x9d);
+/* Start forwarding table at 0x500, so we don't run into conflicts with the BDA
+ * in case our data structures grow beyond 0x400. Only GDT
+ * and the coreboot table use low_tables.
+ */
+static uintptr_t forwarding_table = 0x500;
 
-	high_table_pointer = (unsigned long)cbmem_add(CBMEM_ID_CBTABLE, MAX_COREBOOT_TABLE_SIZE);
+void arch_write_tables(uintptr_t coreboot_table)
+{
+	size_t sz;
+	unsigned long rom_table_end = 0xf0000;
 
-	if (high_table_pointer) {
-		unsigned long new_high_table_pointer;
+	/* This table must be between 0x0f0000 and 0x100000 */
+	if (IS_ENABLED(CONFIG_GENERATE_PIRQ_TABLE))
+		rom_table_end = write_pirq_table(rom_table_end);
 
-		/* FIXME: The high_table_base parameter is not reference when tables are high,
-		 * or high_table_pointer >1 MB.
-		 */
-		u64 fixme_high_tables_base = 0;
+	/* The smp table must be in 0-1K, 639K-640K, or 960K-1M */
+	if (IS_ENABLED(CONFIG_GENERATE_MP_TABLE))
+		rom_table_end = write_mptable(rom_table_end);
 
-		/* Also put a forwarder entry into 0-4K */
-		new_high_table_pointer = write_coreboot_table(low_table_start, low_table_end,
-				fixme_high_tables_base, high_table_pointer);
+	if (IS_ENABLED(CONFIG_HAVE_ACPI_TABLES))
+		rom_table_end = write_acpi_table(rom_table_end);
 
-		if (new_high_table_pointer > (high_table_pointer +
-					MAX_COREBOOT_TABLE_SIZE))
-			printk(BIOS_ERR, "%s: coreboot table didn't fit (%lx)\n",
-				   __func__, new_high_table_pointer -
-				   high_table_pointer);
+	if (IS_ENABLED(CONFIG_GENERATE_SMBIOS_TABLES))
+		rom_table_end = write_smbios_table(rom_table_end);
 
-			printk(BIOS_DEBUG, "coreboot table: %ld bytes.\n",
-				new_high_table_pointer - high_table_pointer);
-	} else {
-		/* The coreboot table must be in 0-4K or 960K-1M */
-		write_coreboot_table(low_table_start, low_table_end,
-				     rom_table_start, rom_table_end);
-	}
+	sz = write_coreboot_forwarding_table(forwarding_table, coreboot_table);
 
-	/* Print CBMEM sections */
-	cbmem_list();
+	forwarding_table += sz;
+	/* Align up to page boundary for historical consistency. */
+	forwarding_table = ALIGN_UP(forwarding_table, 4*KiB);
+}
+
+void bootmem_arch_add_ranges(void)
+{
+	/* Memory from 0 through the forwarding_table is reserved. */
+	const uintptr_t base = 0;
+
+	bootmem_add_range(base, forwarding_table - base, LB_MEM_TABLE);
 }
