@@ -2,7 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2010 Advanced Micro Devices, Inc.
- * Copyright (C) 2015 Timothy Pearson <tpearson@raptorengineeringinc.com>, Raptor Engineering
+ * Copyright (C) 2015 - 2016 Raptor Engineering, LLC
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -779,7 +779,7 @@ void prepareDimms(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstat,
 
 					/* Retrieve normal settings of the MRS control word and clear Rtt_Nom */
 					if (is_fam15h()) {
-						tempW = mct_MR1(pMCTstat, pDCTstat, dct, dimm*2+rank) & 0xffff;
+						tempW = mct_MR1(pMCTstat, pDCTstat, dct, currDimm*2+rank) & 0xffff;
 						tempW &= ~(0x0244);
 					} else {
 						/* Set TDQS=1b for x8 DIMM, TDQS=0b for x4 DIMM, when mixed x8 & x4 */
@@ -862,7 +862,7 @@ void prepareDimms(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstat,
 
 					/* Retrieve normal settings of the MRS control word and clear Rtt_WR */
 					if (is_fam15h()) {
-						tempW = mct_MR2(pMCTstat, pDCTstat, dct, dimm*2+rank) & 0xffff;
+						tempW = mct_MR2(pMCTstat, pDCTstat, dct, currDimm*2+rank) & 0xffff;
 						tempW &= ~(0x0600);
 					} else {
 						/* program MrsAddress[7,6,5:3]=SRT,ASR,CWL,
@@ -1212,7 +1212,7 @@ void procConfig(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstat, ui
 						((pDCTData->WLGrossDelayPrevPass[lane_count*dimm+ByteLane] & 0x1f) << 5);
 					SeedTotalPreScaling[ByteLane] = (SeedTotal[ByteLane] - RegisterDelay - (0x20 * WrDqDqsEarly));
 					SeedTotal[ByteLane] = (int32_t) (RegisterDelay + ((((int64_t) SeedTotalPreScaling[ByteLane]) *
-						fam15h_freq_tab[MemClkFreq] * 100) / (fam15h_freq_tab[pDCTData->WLPrevMemclkFreq] * 100)));
+						fam15h_freq_tab[MemClkFreq] * 100) / (fam15h_freq_tab[pDCTData->WLPrevMemclkFreq[dimm]] * 100)));
 				}
 
 				/* Generate register values from seeds */
@@ -1326,7 +1326,7 @@ void procConfig(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTstat, ui
 		}
 	}
 
-	pDCTData->WLPrevMemclkFreq = MemClkFreq;
+	pDCTData->WLPrevMemclkFreq[dimm] = MemClkFreq;
 	setWLByteDelay(pDCTstat, dct, ByteLane, dimm, 0, pass, lane_count);
 }
 

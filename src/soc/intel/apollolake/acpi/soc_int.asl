@@ -24,6 +24,7 @@
 #define UART2_INT	6	/* Need to be shared by PMC and SCC only*/
 #define UART3_INT	7	/* Need to be shared by PMC and SCC only*/
 #define XDCI_INT	13	/* Need to be shared by PMC and SCC only*/
+#define GPIO_BANK_INT	16
 #define NPK_INT		16
 #define PIRQA_INT	16
 #define PIRQB_INT	17
@@ -51,6 +52,7 @@
 #define SPI2_INT	37
 #define UFS_INT		38
 #define EMMC_INT	39
+#define PMC_INT		40
 #define SDIO_INT	42
 
 #endif	/* _SOC_INT_DEFINE_ASL_ */

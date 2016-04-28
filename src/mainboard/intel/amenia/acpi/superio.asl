@@ -1,8 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
- * Copyright (C) 2016 Intel Corp.
- * (Written by Lance Zhao <lijian.zhao@intel.com> for Intel Corp.)
+ * Copyright (C) 2015-2016 Intel Corp.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,11 +14,12 @@
  * GNU General Public License for more details.
  */
 
-/* LPSS device */
-#include "lpss.asl"
+/* mainboard configuration */
+#include "../ec.h"
 
-/* PCI IRQ assignment */
-#include "pci_irqs.asl"
+#define SIO_EC_MEMMAP_ENABLE     // EC Memory Map Resources
+#define SIO_EC_HOST_ENABLE       // EC Host Interface Resources
+#define SIO_EC_ENABLE_PS2K       // Enable PS/2 Keyboard
 
-/* GPIO controller */
-#include "gpio.asl"
+/* ACPI code for EC SuperIO functions */
+#include <ec/google/chromeec/acpi/superio.asl>

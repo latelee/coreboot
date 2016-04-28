@@ -25,4 +25,6 @@ void soc_fill_common_fadt(acpi_fadt_t * fadt);
 unsigned long southbridge_write_acpi_tables(device_t device,
 		unsigned long current, struct acpi_rsdp *rsdp);
 
+void southbridge_inject_dsdt(device_t device);
+
 #endif	/* _SOC_APOLLOLAKE_ACPI_H_ */

@@ -1,7 +1,7 @@
 /*
  * This file is part of the coreboot project.
  *
- * Copyright (C) 2016 Intel Corp.
+ * Copyright (C) 2015 Intel Corp.
  * (Written by Lance Zhao <lijian.zhao@intel.com> for Intel Corp.)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -15,11 +15,23 @@
  * GNU General Public License for more details.
  */
 
-/* LPSS device */
-#include "lpss.asl"
+/*
+ * NOTE: The layout of the global_nvs_t structure below must match the layout
+ * in soc/intel/apollolake/acpi/globalnvs.asl !!!
+ *
+ */
 
-/* PCI IRQ assignment */
-#include "pci_irqs.asl"
+#ifndef _SOC_APOLLOLAKE_NVS_H_
+#define _SOC_APOLLOLAKE_NVS_H_
 
-/* GPIO controller */
-#include "gpio.asl"
+#include <vendorcode/google/chromeos/gnvs.h>
+
+struct global_nvs_t {
+	/* Miscellaneous */
+	uint8_t unused[256];
+
+	/* ChromeOS specific (0x100 - 0xfff) */
+	chromeos_acpi_t chromeos;
+} __attribute__((packed));
+
+#endif	/* _SOC_APOLLOLAKE_NVS_H_ */

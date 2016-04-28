@@ -2,6 +2,7 @@
  * This file is part of the coreboot project.
  *
  * Copyright (C) 2016 Intel Corp.
+ * (Written by Alexandru Gagniuc <alexandrux.gagniuc@intel.com> for Intel Corp.)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,20 +15,21 @@
  * GNU General Public License for more details.
  */
 
-#include <bootblock_common.h>
-#include <soc/gpio.h>
+/*
+ * NOTE: The layout of the GNVS structure below must match the layout in
+ * soc/intel/apollolake/include/soc/nvs.h !!!
+ *
+ */
 
-static const struct pad_config tpm_spi_configs[] = {
-	PAD_CFG_NF(GPIO_106, NATIVE, DEEP, NF3),	/* FST_SPI_CS2_N */
-};
+External (NVSA)
 
-static void tpm_enable(void)
+OperationRegion (GNVS, SystemMemory, NVSA, 0x1000)
+Field (GNVS, ByteAcc, NoLock, Preserve)
 {
-	/* Configure gpios */
-	gpio_configure_pads(tpm_spi_configs, ARRAY_SIZE(tpm_spi_configs));
-}
+	/* Nothing here yet, folks */
+	Offset (0x00),
 
-void bootblock_mainboard_init(void) {
-	if (IS_ENABLED(CONFIG_LPC_TPM))
-		tpm_enable();
+	/* ChromeOS stuff (0x100 -> 0xfff, size 0xeff) */
+	Offset (0x100),
+	#include <vendorcode/google/chromeos/acpi/gnvs.asl>
 }
