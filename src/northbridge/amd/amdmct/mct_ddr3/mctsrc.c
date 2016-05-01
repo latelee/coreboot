@@ -1194,6 +1194,7 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 	uint16_t initial_seed;
 	uint8_t train_both_nibbles;
 	uint16_t current_total_delay[MAX_BYTE_LANES];
+	uint16_t nibble0_current_total_delay[MAX_BYTE_LANES];
 	uint16_t dqs_ret_pass1_total_delay[MAX_BYTE_LANES];
 	uint16_t rank0_current_total_delay[MAX_BYTE_LANES];
 	uint16_t phase_recovery_delays[MAX_BYTE_LANES];
@@ -1419,19 +1420,11 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 					for (lane = 0; lane < lane_count; lane++) {
 						current_total_delay[lane] = (phase_recovery_delays[lane] & 0x1f);
 						current_total_delay[lane] |= ((seed_gross[lane] + ((phase_recovery_delays[lane] >> 5) & 0x1f) - seed_pre_gross[lane] + 1) << 5);
-						if (nibble == 0) {
-							if (lane == 8)
-								pDCTstat->CH_D_BC_RCVRDLY[Channel][dimm] = current_total_delay[lane];
-							else
-								pDCTstat->CH_D_B_RCVRDLY[Channel][dimm][lane] = current_total_delay[lane];
-						} else {
+						if (nibble == 1) {
 							/* 2.10.5.8.2 (1)
 							 * Average the trained values of both nibbles on x4 DIMMs
 							 */
-							if (lane == 8)
-								pDCTstat->CH_D_BC_RCVRDLY[Channel][dimm] = (pDCTstat->CH_D_BC_RCVRDLY[Channel][dimm] + current_total_delay[lane]) / 2;
-							else
-								pDCTstat->CH_D_B_RCVRDLY[Channel][dimm][lane] = (pDCTstat->CH_D_B_RCVRDLY[Channel][dimm][lane] + current_total_delay[lane]) / 2;
+							current_total_delay[lane] = (nibble0_current_total_delay[lane] + current_total_delay[lane]) / 2;
 						}
 					}
 
@@ -1441,26 +1434,44 @@ static void dqsTrainRcvrEn_SW_Fam15(struct MCTStatStruc *pMCTstat,
 							Channel, dimm, nibble, lane, current_total_delay[lane], pDCTstat->CH_D_B_RCVRDLY[Channel][dimm][lane]);
 #endif
 					write_dqs_receiver_enable_control_registers(current_total_delay, dev, Channel, dimm, index_reg);
+
+					if (nibble == 0) {
+						/* Back up the Nibble 0 delays for later use */
+						memcpy(nibble0_current_total_delay, current_total_delay, sizeof(current_total_delay));
+					}
+
+					/* Exit nibble training if current DIMM is not x4 */
+					if ((pDCTstat->Dimmx4Present & (1 << (dimm + Channel))) == 0)
+						break;
 				}
 
-				if (rank == 0) {
-					/* Back up the Rank 0 delays for later use */
-					memcpy(rank0_current_total_delay, current_total_delay, sizeof(current_total_delay));
-				}
-
-				if (rank == 1) {
-					/* 2.10.5.8.2 (8)
-					 * Compute the average delay across both ranks and program the result into
-					 * the DQS Receiver Enable delay registers
-					 */
+				if (_2Ranks) {
+					if (rank == 0) {
+						/* Back up the Rank 0 delays for later use */
+						memcpy(rank0_current_total_delay, current_total_delay, sizeof(current_total_delay));
+					}
+					if (rank == 1) {
+						/* 2.10.5.8.2 (8)
+						 * Compute the average delay across both ranks and program the result into
+						 * the DQS Receiver Enable delay registers
+						 */
+						for (lane = 0; lane < lane_count; lane++) {
+							current_total_delay[lane] = (rank0_current_total_delay[lane] + current_total_delay[lane]) / 2;
+							if (lane == 8)
+								pDCTstat->CH_D_BC_RCVRDLY[Channel][dimm] = current_total_delay[lane];
+							else
+								pDCTstat->CH_D_B_RCVRDLY[Channel][dimm][lane] = current_total_delay[lane];
+						}
+						write_dqs_receiver_enable_control_registers(current_total_delay, dev, Channel, dimm, index_reg);
+					}
+				} else {
+					/* Save the current delay for later use by other routines */
 					for (lane = 0; lane < lane_count; lane++) {
-						current_total_delay[lane] = (rank0_current_total_delay[lane] + current_total_delay[lane]) / 2;
 						if (lane == 8)
 							pDCTstat->CH_D_BC_RCVRDLY[Channel][dimm] = current_total_delay[lane];
 						else
 							pDCTstat->CH_D_B_RCVRDLY[Channel][dimm][lane] = current_total_delay[lane];
 					}
-					write_dqs_receiver_enable_control_registers(current_total_delay, dev, Channel, dimm, index_reg);
 				}
 			}
 
@@ -1679,6 +1690,9 @@ static void dqsTrainMaxRdLatency_SW_Fam15(struct MCTStatStruc *pMCTstat,
 				break;
 			Set_NB32_index_wait_DCT(dev, Channel, index_reg, 0x00000050, 0x13131313);
 		}
+		dword = Get_NB32_DCT(dev, Channel, 0x268) & 0x3ffff;
+		if (dword)
+			printk(BIOS_ERR, "WARNING: MaxRdLatency training FAILED!  Attempting to continue but your system may be unstable...\n");
 
 		/* 2.10.5.8.5.1.5 */
 		nb_pstate = 0;
