@@ -138,7 +138,7 @@ void update_display_shift_clock_divider(struct display_controller *disp_ctrl,
  *   set up window registers and activate window except two:
  *   frame buffer base address register (WINBUF_START_ADDR) and
  *   display enable register (_DISP_DISP_WIN_OPTIONS). This is
- *   becasue framebuffer is not available until payload stage.
+ *   because framebuffer is not available until payload stage.
  */
 void update_window(const struct soc_nvidia_tegra132_config *config)
 {
@@ -230,7 +230,7 @@ void pass_mode_info_to_payload(
 	edid.mode.va = config->display_yres;
 	edid.mode.ha = config->display_xres;
 	edid_set_framebuffer_bits_per_pixel(&edid,
-		config->framebuffer_bits_per_pixel, 0);
+		config->framebuffer_bits_per_pixel, 64);
 
 	printk(BIOS_INFO, "%s: bytes_per_line: %d, bits_per_pixel: %d\n "
 			"               x_res x y_res: %d x %d, size: %d\n",

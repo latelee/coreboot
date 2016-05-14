@@ -12,6 +12,7 @@ EXIT_FAILURE=1
 # Stuff from command-line switches
 COREBOOT_IMAGE="build/coreboot.rom"
 REMOTE_HOST=""
+REMOTE_PORT_OPTION=""
 CLOBBER_OUTPUT=0
 UPLOAD_RESULTS=0
 SERIAL_PORT_SPEED=115200
@@ -39,7 +40,7 @@ test_cmd()
 	fi
 
 	if [ "$1" -eq "$REMOTE" ] && [ -n "$REMOTE_HOST" ]; then
-		ssh root@${REMOTE_HOST} command -v "$2" > /dev/null
+		ssh $REMOTE_PORT_OPTION root@${REMOTE_HOST} command -v "$2" > /dev/null
 		rc=$?
 	else
 		command -v "$2" >/dev/null
@@ -71,7 +72,7 @@ _cmd()
 	fi
 
 	if [ "$1" -eq "$REMOTE" ] && [ -n "$REMOTE_HOST" ]; then
-		ssh "root@${REMOTE_HOST}" "$2" > "$pipe_location" 2>&1
+		ssh $REMOTE_PORT_OPTION "root@${REMOTE_HOST}" "$2" > "$pipe_location" 2>&1
 	else
 		$2 > "$pipe_location" 2>&1
 	fi
@@ -179,6 +180,8 @@ Options
         Path to coreboot image (Default is $COREBOOT_IMAGE).
     -r  <host>
         Obtain machine information from remote host (using ssh).
+    --ssh-port <port>
+        Use a specific SSH port.
     -s  </dev/xxx>
         Obtain boot log via serial device.
     -S  <speed>
@@ -188,31 +191,60 @@ Options
 "
 }
 
-while getopts "Chi:r:s:S:u" opt; do
-	case "$opt" in
-		h)
+getopt -T
+if [ $? -ne 4 ]; then
+	echo "GNU-compatible getopt(1) required."
+	exit $EXIT_FAILURE
+fi
+
+ARGS=$(getopt -o Chi:r:s:S:u -l "ssh-port:" -n "$0" -- "$@");
+if [ $? != 0 ] ; then echo "Terminating..." >&2 ; exit 1 ; fi
+eval set -- "$ARGS"
+while true ; do
+	case "$1" in
+		-h)
 			show_help
 			exit $EXIT_SUCCESS
 			;;
-		C)
+		-C)
 			CLOBBER_OUTPUT=1
 			;;
-		i)
-			COREBOOT_IMAGE="$OPTARG"
+		-i)
+			shift
+			COREBOOT_IMAGE="$1"
 			;;
-		r)
-			REMOTE_HOST="$OPTARG"
+		-r)
+			shift
+			REMOTE_HOST="$1"
 			;;
-		s)
-			SERIAL_DEVICE="$OPTARG"
+		--ssh-port)
+			shift
+			REMOTE_PORT_OPTION="-p $1"
 			;;
-		S)
-			SERIAL_PORT_SPEED="$OPTARG"
+		-s)
+			shift
+			SERIAL_DEVICE="$1"
 			;;
-		u)
+		-S)
+			shift
+			SERIAL_PORT_SPEED="$1"
+			;;
+		-u)
 			UPLOAD_RESULTS=1
 			;;
+		--)
+			shift
+			if [ -n "$*" ]; then
+				echo "Non-option parameters detected: '$*'"
+				exit $EXIT_FAILURE
+			fi
+			break
+			;;
+		*)
+			echo "error processing options at '$1'"
+			exit $EXIT_FAILURE
 	esac
+	shift
 done
 
 grep -rH 'coreboot.org' .git/config >/dev/null 2>&1
@@ -357,7 +389,7 @@ if [ $UPLOAD_RESULTS -eq 1 ]; then
 	git add "${vendor}"
 	git commit -a -m "${mainboard_dir}/${tagged_version}/${timestamp}"
 	count=0
-	until git push origin || test $count -eq 3; do
+	until git push origin master || test $count -eq 3; do
 	        git pull --rebase
 		count=$((count + 1))
 	done

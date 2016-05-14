@@ -69,8 +69,19 @@ config TSC_SYNC_MFENCE
 	  to execute an mfence instruction in order to synchronize
 	  rdtsc. This is true for all modern Intel CPUs.
 
+config NO_FIXED_XIP_ROM_SIZE
+	bool
+	default n
+	help
+	  The XIP_ROM_SIZE Kconfig variable is used globally on x86
+	  with the assumption that all chipsets utilize this value.
+	  For the chipsets which do not use the variable it can lead
+	  to unnecessary alignment constraints in cbfs for romstage.
+	  Therefore, allow those chipsets a path to not be burdened.
+
 config XIP_ROM_SIZE
 	hex
+	depends on !NO_FIXED_XIP_ROM_SIZE
 	default ROM_SIZE if ROMCC
 	default 0x10000
 
@@ -126,12 +137,6 @@ config PLATFORM_USES_FSP1_0
 	help
 	  Selected for Intel processors/platform combinations that use the
 	  Intel Firmware Support Package (FSP) 1.0 for initialization.
-
-config BACKUP_DEFAULT_SMM_REGION
-	def_bool n
-	help
-	 The CPU support will select this option if the default SMM region
-	 needs to be backed up for suspend/resume purposes.
 
 config MIRROR_PAYLOAD_TO_RAM_BEFORE_LOADING
 	def_bool n

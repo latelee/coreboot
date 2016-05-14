@@ -16,27 +16,48 @@
  * GNU General Public License for more details.
  */
 
-#include <assert.h>
 #include <arch/cpu.h>
+#include <arch/early_variables.h>
 #include <arch/io.h>
 #include <arch/symbols.h>
+#include <assert.h>
 #include <cbfs.h>
 #include <cbmem.h>
 #include <console/console.h>
 #include <cpu/x86/mtrr.h>
 #include <device/pci_def.h>
+#include <device/resource.h>
 #include <fsp/api.h>
 #include <fsp/util.h>
-#include <device/resource.h>
-#include <string.h>
-#include <soc/iomap.h>
+#include <reset.h>
+#include <romstage_handoff.h>
 #include <soc/intel/common/mrc_cache.h>
-#include <soc/pci_devs.h>
+#include <soc/iomap.h>
 #include <soc/northbridge.h>
+#include <soc/pci_devs.h>
+#include <soc/pm.h>
 #include <soc/romstage.h>
 #include <soc/uart.h>
+#include <string.h>
 
 #define FIT_POINTER				(0x100000000ULL - 0x40)
+
+static struct chipset_power_state power_state CAR_GLOBAL;
+
+/* High Performance Event Timer Configuration */
+#define P2SB_HPTC				0x60
+#define P2SB_HPTC_ADDRESS_ENABLE		(1 << 7)
+/*
+ * ADDRESS_SELECT            ENCODING_RANGE
+ *      0                 0xFED0 0000 - 0xFED0 03FF
+ *      1                 0xFED0 1000 - 0xFED0 13FF
+ *      2                 0xFED0 2000 - 0xFED0 23FF
+ *      3                 0xFED0 3000 - 0xFED0 33FF
+ */
+#define P2SB_HPTC_ADDRESS_SELECT_0		(0 << 0)
+#define P2SB_HPTC_ADDRESS_SELECT_1		(1 << 0)
+#define P2SB_HPTC_ADDRESS_SELECT_2		(2 << 0)
+#define P2SB_HPTC_ADDRESS_SELECT_3		(3 << 0)
 
 /*
  * Enables several BARs and devices which are needed for memory init
@@ -59,12 +80,13 @@ static void soc_early_romstage_init(void)
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_2, PMC_BAR1);
 	pci_write_config32(pmc, PCI_BASE_ADDRESS_3, 0);	/* 64-bit BAR */
 	pci_write_config16(pmc, PCI_BASE_ADDRESS_4, ACPI_PMIO_BASE);
-	pci_write_config32(pmc, PCI_COMMAND,
+	pci_write_config16(pmc, PCI_COMMAND,
 				PCI_COMMAND_IO | PCI_COMMAND_MEMORY |
 				PCI_COMMAND_MASTER);
 
 	/* Enable decoding for HPET. Needed for FSP global pointer storage */
-	pci_write_config32(P2SB_DEV, 0x60, 1<<7);
+	pci_write_config8(P2SB_DEV, P2SB_HPTC, P2SB_HPTC_ADDRESS_SELECT_0 |
+						P2SB_HPTC_ADDRESS_ENABLE);
 }
 
 static void disable_watchdog(void)
@@ -77,19 +99,41 @@ static void disable_watchdog(void)
 	outl(reg, ACPI_PMIO_BASE + 0x68);
 }
 
+static void migrate_power_state(int is_recovery)
+{
+	struct chipset_power_state *ps_cbmem;
+	struct chipset_power_state *ps_car;
+
+	ps_car = car_get_var_ptr(&power_state);
+	ps_cbmem = cbmem_add(CBMEM_ID_POWER_STATE, sizeof(*ps_cbmem));
+
+	if (ps_cbmem == NULL) {
+		printk(BIOS_DEBUG, "Unable to add power state to cbmem!\n");
+		return;
+	}
+	memcpy(ps_cbmem, ps_car, sizeof(*ps_cbmem));
+}
+ROMSTAGE_CBMEM_INIT_HOOK(migrate_power_state);
+
 asmlinkage void car_stage_entry(void)
 {
-	void *hob_list_ptr, *mrc_data;
+	void *hob_list_ptr;
+	const void *mrc_data;
 	struct range_entry fsp_mem, reg_car;
 	struct postcar_frame pcf;
 	size_t  mrc_data_size;
 	uintptr_t top_of_ram;
+	int prev_sleep_state;
+	struct romstage_handoff *handoff;
+	struct chipset_power_state *ps = car_get_var_ptr(&power_state);
 
 	printk(BIOS_DEBUG, "Starting romstage...\n");
 
 	soc_early_romstage_init();
 
 	disable_watchdog();
+
+	prev_sleep_state = fill_power_state(ps);
 
 	/* Make sure the blob does not override our data in CAR */
 	range_entry_init(&reg_car, (uintptr_t)_car_relocatable_data_end,
@@ -102,8 +146,17 @@ asmlinkage void car_stage_entry(void)
 	fsp_find_reserved_memory(&fsp_mem, hob_list_ptr);
 
 	/* initialize cbmem by adding FSP reserved memory first thing */
-	cbmem_initialize_empty_id_size(CBMEM_ID_FSP_RESERVED_MEMORY,
-					range_entry_size(&fsp_mem));
+	if (prev_sleep_state != SLEEP_STATE_S3) {
+		cbmem_initialize_empty_id_size(CBMEM_ID_FSP_RESERVED_MEMORY,
+			range_entry_size(&fsp_mem));
+	} else if (cbmem_initialize_id_size(CBMEM_ID_FSP_RESERVED_MEMORY,
+				range_entry_size(&fsp_mem))) {
+		if (IS_ENABLED(CONFIG_HAVE_ACPI_RESUME)) {
+			printk(BIOS_DEBUG, "Failed to recover CBMEM in S3 resume.\n");
+			/* Failed S3 resume, reset to come up cleanly */
+			hard_reset();
+		}
+	}
 
 	/* make sure FSP memory is reserved in cbmem */
 	if (range_entry_base(&fsp_mem) !=
@@ -114,13 +167,20 @@ asmlinkage void car_stage_entry(void)
 	fsp_save_hob_list(hob_list_ptr);
 
 	/* Save MRC Data to CBMEM */
-	if (IS_ENABLED(CONFIG_CACHE_MRC_SETTINGS))
+	if (IS_ENABLED(CONFIG_CACHE_MRC_SETTINGS) &&
+	    (prev_sleep_state != SLEEP_STATE_S3))
 	{
-		/* TODO: treat MRC data as const */
-		mrc_data = (void*) fsp_find_nv_storage_data(&mrc_data_size);
+		mrc_data = fsp_find_nv_storage_data(&mrc_data_size);
 		if (mrc_data && mrc_cache_stash_data(mrc_data, mrc_data_size) < 0)
 			printk(BIOS_ERR, "Failed to stash MRC data\n");
 	}
+
+	/* Create romstage handof information */
+	handoff = romstage_handoff_find_or_add();
+	if (handoff != NULL)
+		handoff->s3_resume = (prev_sleep_state == SLEEP_STATE_S3);
+	else
+		printk(BIOS_DEBUG, "Romstage handoff structure not added!\n");
 
 	if (postcar_frame_init(&pcf, 1*KiB))
 		die("Unable to initialize postcar frame.\n");
@@ -157,6 +217,8 @@ void platform_fsp_memory_init_params_cb(struct FSPM_UPD *mupd)
 {
 	const struct mrc_saved_data *mrc_cache;
 	struct FSP_M_ARCH_UPD *arch_upd = &mupd->FspmArchUpd;
+	struct chipset_power_state *ps = car_get_var_ptr(&power_state);
+	int prev_sleep_state = chipset_prev_sleep_state(ps);
 
 	fill_console_params(mupd);
 	mainboard_memory_init_params(mupd);
@@ -185,8 +247,12 @@ void platform_fsp_memory_init_params_cb(struct FSPM_UPD *mupd)
 		if (!mrc_cache_get_current_with_version(&mrc_cache, 0)) {
 			/* MRC cache found */
 			arch_upd->NvsBufferPtr = (void *)mrc_cache->data;
-			arch_upd->Bootmode = FSP_BOOT_ASSUMING_NO_CONFIGURATION_CHANGES;
-			printk(BIOS_DEBUG, "MRC cache found, size %x\n", mrc_cache->size);
+			arch_upd->Bootmode =
+				prev_sleep_state == SLEEP_STATE_S3 ?
+				FSP_BOOT_ON_S3_RESUME:
+				FSP_BOOT_ASSUMING_NO_CONFIGURATION_CHANGES;
+			printk(BIOS_DEBUG, "MRC cache found, size %x bootmode:%d\n",
+						mrc_cache->size, arch_upd->Bootmode);
 		} else
 			printk(BIOS_DEBUG, "MRC cache was not found\n");
 	}

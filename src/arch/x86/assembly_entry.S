@@ -14,7 +14,53 @@
  * GNU General Public License for more details.
  */
 
-#if !IS_ENABLED(CONFIG_C_ENVIRONMENT_BOOTBLOCK)
+#include <rules.h>
+
+/*
+ *Take the path where CAR_GLOBAL variables just need to be cleared when
+ * verstage runs directly after bootblock.
+ */
+#define ROMSTAGE_AFTER_VERSTAGE \
+	(IS_ENABLED(CONFIG_SEPARATE_VERSTAGE) && \
+		IS_ENABLED(CONFIG_VBOOT_STARTS_IN_BOOTBLOCK) && ENV_ROMSTAGE)
+
+#if IS_ENABLED(CONFIG_C_ENVIRONMENT_BOOTBLOCK) || ROMSTAGE_AFTER_VERSTAGE
+
+/*
+ * This path is for stages that are post bootblock when employing
+ * CONFIG_C_ENVIRONMENT_BOOTBLOCK or any intermediate stage succeeding
+ * the first stage to initialize protected mode. There's no need to re-load
+ * the gdt, etc as all those settings are cached within the processor. In
+ * order to continue with C code execution one needs to set stack pointer and
+ * clear CAR_GLOBAL variables that are stage specific.
+ */
+.section ".text._start", "ax", @progbits
+.global _start
+_start:
+
+/* _car_stack_end symbol is only valid when bootblock does CAR setup. */
+#if IS_ENABLED(CONFIG_C_ENVIRONMENT_BOOTBLOCK)
+	/* reset stack pointer to CAR stack */
+	mov	$_car_stack_end, %esp
+#endif
+
+	/* clear CAR_GLOBAL area as it is not shared */
+	cld
+	xor	%eax, %eax
+	movl	$(_car_global_end), %ecx
+	movl	$(_car_global_start), %edi
+	sub	%edi, %ecx
+	rep	stosl
+
+	jmp	car_stage_entry
+
+/* This is here for linking purposes. */
+.weak car_stage_entry
+car_stage_entry:
+1:
+	jmp	1b
+
+#else
 
 /* This file assembles the start of the romstage program by the order of the
  * includes. Thus, it's extremely important that one pays very careful
@@ -35,34 +81,4 @@
  */
 #include <generated/assembly.inc>
 
-#else
-/*
- * This path is for stages that post bootblock when employing
- * CONFIG_C_ENVIRONMENT_BOOTBLOCK. There's no need to re-load the gdt, etc
- * as all those settings are cached within the processor. In order to
- * continue with C code execution one needs to set stack pointer and clear
- * CAR_GLOBAL variables that are stage specific.
- */
-.section ".text._start", "ax", @progbits
-.global _start
-_start:
-
-	/* reset stack pointer to CAR stack */
-	mov	$_car_stack_end, %esp
-
-	/* clear CAR_GLOBAL area as it is not shared */
-	cld
-	xor	%eax, %eax
-	movl	$(_car_global_end), %ecx
-	movl	$(_car_global_start), %edi
-	sub	%edi, %ecx
-	rep	stosl
-
-	jmp	car_stage_entry
-
-/* This is here for linking purposes. */
-.weak car_stage_entry
-car_stage_entry:
-1:
-	jmp	1b
 #endif

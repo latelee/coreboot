@@ -26,9 +26,11 @@ config CPU_SPECIFIC_OPTIONS
 	select ARCH_RAMSTAGE_X86_32
 	select ARCH_ROMSTAGE_X86_32
 	select ARCH_VERSTAGE_X86_32
+	select REG_SCRIPT
 	select SOC_INTEL_COMMON
 	select SOC_SETS_MTRRS
 	select TSC_CONSTANT_RATE
+	select UART_OVERRIDE_REFCLK
 	select UDELAY_TSC
 	select UNCOMPRESSED_RAMSTAGE
 	select USE_MARCH_586
@@ -58,6 +60,13 @@ config TTYS0_LCS
 	int
 	depends on ENABLE_BUILTIN_HSUART1
 	default 3
+
+# Console: PCI UART bus 0 << 20, device 20 << 15, function 5 << 12
+#          Valid bit, PCI UART in use: 1 << 31
+config UART_PCI_ADDR
+	hex
+	depends on ENABLE_BUILTIN_HSUART1
+	default 0x800a5000
 
 #####
 # Debug support

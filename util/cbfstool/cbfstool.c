@@ -29,7 +29,7 @@
 #include "cbfs_sections.h"
 #include "fit.h"
 #include "partitioned_file.h"
-#include <commonlib/fsp1_1.h>
+#include <commonlib/fsp.h>
 
 #define SECTION_WITH_FIT_TABLE	"BOOTBLOCK"
 
@@ -106,6 +106,21 @@ static bool region_is_modern_cbfs(const char *region)
 
 /*
  * Converts between offsets from the start of the specified image region and
+ * "top-aligned" offsets from the top of the entire boot media. See comment
+ * below for convert_to_from_top_aligned() about forming addresses.
+ */
+static unsigned convert_to_from_absolute_top_aligned(
+		const struct buffer *region, unsigned offset)
+{
+	assert(region);
+
+	size_t image_size = partitioned_file_total_size(param.image_file);
+
+	return image_size - region->offset - offset;
+}
+
+/*
+ * Converts between offsets from the start of the specified image region and
  * "top-aligned" offsets from the top of the image region. Works in either
  * direction: pass in one type of offset and receive the other type.
  * N.B. A top-aligned offset is always a positive number, and should not be
@@ -123,8 +138,7 @@ static unsigned convert_to_from_top_aligned(const struct buffer *region,
 		return region->size - offset;
 	}
 
-	size_t image_size = partitioned_file_total_size(param.image_file);
-	return image_size - region->offset - offset;
+	return convert_to_from_absolute_top_aligned(region, offset);
 }
 
 static int do_cbfs_locate(int32_t *cbfs_addr, size_t metadata_size)
@@ -460,10 +474,39 @@ static int cbfstool_convert_fsp(struct buffer *buffer,
 
 	address = *offset;
 
-	/* Ensure the address is a memory mapped one. */
-	if (!IS_TOP_ALIGNED_ADDRESS(address))
-		address = -convert_to_from_top_aligned(param.image_region,
-								address);
+	/*
+	 * If the FSP component is xip, then ensure that the address is a memory
+	 * mapped one.
+	 * If the FSP component is not xip, then use param.baseaddress that is
+	 * passed in by the caller.
+	 *
+	 */
+	if (param.stage_xip) {
+		if (!IS_TOP_ALIGNED_ADDRESS(address))
+			address = -convert_to_from_absolute_top_aligned(
+					param.image_region, address);
+	} else {
+		if ((param.baseaddress_assigned == 0) ||
+		    (param.baseaddress == 0)) {
+			ERROR("Invalid baseaddress for non-XIP FSP.\n");
+			return 1;
+		}
+
+		address = param.baseaddress;
+
+		/*
+		 * *offset should either be 0 or the value returned by
+		 * do_cbfs_locate. do_cbfs_locate should not ever return a value
+		 * that is TOP_ALIGNED_ADDRESS. Thus, if *offset contains a top
+		 * aligned address, set it to 0.
+		 *
+		 * The only requirement in this case is that the binary should
+		 * be relocated to the base address that is requested. There is
+		 * no requirement on where the file ends up in the cbfs.
+		 */
+		if (IS_TOP_ALIGNED_ADDRESS(*offset))
+			*offset = 0;
+	}
 
 	/* Create a copy of the buffer to attempt relocation. */
 	if (buffer_create(&fsp, buffer_size(buffer), "fsp"))
@@ -472,12 +515,13 @@ static int cbfstool_convert_fsp(struct buffer *buffer,
 	memcpy(buffer_get(&fsp), buffer_get(buffer), buffer_size(buffer));
 
 	/* Replace the buffer contents w/ the relocated ones on success. */
-	if (fsp1_1_relocate(address, buffer_get(&fsp), buffer_size(&fsp)) > 0) {
+	if (fsp_component_relocate(address, buffer_get(&fsp), buffer_size(&fsp))
+	    > 0) {
 		buffer_delete(buffer);
 		buffer_clone(buffer, &fsp);
 	} else {
 		buffer_delete(&fsp);
-		WARN("FSP was not a 1.1 variant.\n");
+		WARN("Invalid FSP variant.\n");
 	}
 
 	/* Let the raw path handle all the cbfs metadata logic. */
@@ -498,9 +542,13 @@ static int cbfstool_convert_mkstage(struct buffer *buffer, uint32_t *offset,
 			return 1;
 		}
 
-		/* Pass in a top aligned address. */
-		address = -convert_to_from_top_aligned(param.image_region,
-								address);
+		/*
+		 * Ensure the address is a memory mapped one. This assumes
+		 * x86 semantics about th boot media being directly mapped
+		 * below 4GiB in the CPU address space.
+		 **/
+		address = -convert_to_from_absolute_top_aligned(
+				param.image_region, address);
 		*offset = address;
 
 		ret = parse_elf_to_xip_stage(buffer, &output, offset,
@@ -585,6 +633,9 @@ static int cbfs_add(void)
 	 	if (!param.baseaddress_assigned)
 			param.alignment = 4*1024;
 		convert = cbfstool_convert_fsp;
+	} else if (param.stage_xip) {
+		ERROR("cbfs add supports xip only for FSP component type\n");
+		return 1;
 	}
 
 	if (param.alignment) {
@@ -1012,7 +1063,7 @@ static int cbfs_compact(void)
 }
 
 static const struct command commands[] = {
-	{"add", "H:r:f:n:t:c:b:a:vA:gh?", cbfs_add, true, true},
+	{"add", "H:r:f:n:t:c:b:a:yvA:gh?", cbfs_add, true, true},
 	{"add-flat-binary", "H:r:f:n:l:e:c:b:vA:gh?", cbfs_add_flat_binary,
 				true, true},
 	{"add-payload", "H:r:f:n:t:c:b:C:I:vA:gh?", cbfs_add_payload,
@@ -1135,7 +1186,8 @@ static void usage(char *name)
 	     "  -h               Display this help message\n\n"
 	     "COMMANDs:\n"
 	     " add [-r image,regions] -f FILE -n NAME -t TYPE [-A hash] \\\n"
-	     "        [-c compression] [-b base-address | -a alignment]    "
+	     "        [-c compression] [-b base-address | -a alignment] \\\n"
+	     "        [-y|--xip if TYPE is FSP]                            "
 			"Add a component\n"
 	     " add-payload [-r image,regions] -f FILE -n NAME [-A hash] \\\n"
 	     "        [-c compression] [-b base-address] \\\n"

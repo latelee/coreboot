@@ -21,7 +21,9 @@
 #include <stdint.h>
 #include "ec_commands.h"
 
-#ifndef __PRE_RAM__
+/* Fill in base and size of the IO port resources used. */
+void google_chromeec_ioport_range(uint16_t *base, size_t *size);
+
 int google_chromeec_i2c_xfer(uint8_t chip, uint8_t addr, int alen,
 			     uint8_t *buffer, int len, int is_read);
 u32 google_chromeec_get_wake_mask(void);
@@ -31,16 +33,13 @@ int google_chromeec_set_wake_mask(u32 mask);
 u8 google_chromeec_get_event(void);
 int google_ec_running_ro(void);
 void google_chromeec_init(void);
-#endif
 
-#ifdef __PRE_RAM__
 /* If recovery mode is enabled and EC is not running RO firmware reboot. */
 void google_chromeec_early_init(void);
 void google_chromeec_early_pd_init(void);
 /* Reboot if EC firmware is not expected type. */
 void google_chromeec_check_ec_image(int expected_type);
 void google_chromeec_check_pd_image(int expected_type);
-#endif
 
 int google_chromeec_check_feature(int feature);
 uint8_t google_chromeec_calc_checksum(const uint8_t *data, int size);
@@ -58,6 +57,10 @@ int google_chromeec_vstore_supported(void);
 int google_chromeec_vstore_info(uint32_t *locked);
 int google_chromeec_vstore_read(int slot, uint8_t *data);
 int google_chromeec_vstore_write(int slot, uint8_t *data, size_t size);
+
+/* MEC uses 0x800/0x804 as register/index pair, thus an 8-byte resource. */
+#define MEC_EMI_BASE		0x800
+#define MEC_EMI_SIZE		8
 
 /* For MEC, access ranges 0x800 thru 0x9ff using EMI interface instead of LPC */
 #define MEC_EMI_RANGE_START EC_HOST_CMD_REGION0

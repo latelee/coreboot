@@ -341,11 +341,9 @@ uint8_t is_ecc_enabled(struct MCTStatStruc *pMCTstat, struct DCTStatStruc *pDCTs
 	if (!pMCTstat->try_ecc)
 		ecc_enabled = 0;
 
-	if (pDCTstat->NodePresent && pDCTstat->DIMMValid) {
-		if (!(pDCTstat->Status & (1 << SB_ECCDIMMs))) {
+	if (pDCTstat->NodePresent && (pDCTstat->DIMMValidDCT[0] || pDCTstat->DIMMValidDCT[1]))
+		if (!(pDCTstat->Status & (1 << SB_ECCDIMMs)))
 			ecc_enabled = 0;
-		}
-	}
 
 	return !!ecc_enabled;
 }
@@ -5708,6 +5706,8 @@ static u8 DIMMPresence_D(struct MCTStatStruc *pMCTstat,
 					pDCTstat->DimmRanks[i] = ((pDCTstat->spd_data.spd_bytes[i][SPD_Organization] & 0x38) >> 3) + 1;
 					pDCTstat->DimmBanks[i] = 1ULL << (((pDCTstat->spd_data.spd_bytes[i][SPD_Density] & 0x70) >> 4) + 3);
 					pDCTstat->DimmWidth[i] = 1ULL << ((pDCTstat->spd_data.spd_bytes[i][SPD_BusWidth] & 0x7) + 3);
+					pDCTstat->DimmChipSize[i] = 1ULL << ((pDCTstat->spd_data.spd_bytes[i][SPD_Density] & 0xf) + 28);
+					pDCTstat->DimmChipWidth[i] = 1ULL << ((pDCTstat->spd_data.spd_bytes[i][SPD_Organization] & 0x7) + 2);
 				}
 				/* Check supported voltage(s) */
 				pDCTstat->DimmSupportedVoltages[i] = pDCTstat->spd_data.spd_bytes[i][SPD_Voltage] & 0x7;

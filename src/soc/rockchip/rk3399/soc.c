@@ -13,18 +13,19 @@
  * GNU General Public License for more details.
  */
 
-#include <cpu/cpu.h>
 #include <console/console.h>
+#include <cpu/cpu.h>
 #include <device/device.h>
-#include <stdlib.h>
+#include <soc/addressmap.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 #include <symbols.h>
 
 static void soc_read_resources(device_t dev)
 {
 	ram_resource(dev, 0, (uintptr_t)_dram / KiB,
-		     CONFIG_DRAM_SIZE_MB * KiB);
+		     min(CONFIG_DRAM_SIZE_MB * KiB, MAX_DRAM_ADDRESS / KiB));
 }
 
 static void soc_init(device_t dev)
@@ -32,7 +33,7 @@ static void soc_init(device_t dev)
 	/* reserve bl31 image, which define in
 	 * arm-trusted-firmware/plat/rockchip/rk3399/include/platform_def.h
 	 */
-	mmio_resource(dev, 1, (0x500000 / KiB), (0x80000 / KiB));
+	mmio_resource(dev, 1, (0x10000 / KiB), (0x80000 / KiB));
 }
 
 static struct device_operations soc_ops = {

@@ -27,12 +27,6 @@
 
 /* Should support 8250, 16450, 16550, 16550A type UARTs */
 
-/* Nominal values only, good for the range of choices Kconfig offers for
- * set of standard baudrates.
- */
-#define BAUDRATE_REFCLK		(115200)
-#define BAUDRATE_OVERSAMPLE	(1)
-
 /* Expected character delay at 1200bps is 9ms for a working UART
  * and no flow-control. Assume UART as stuck if shift register
  * or FIFO takes more than 50ms per character to appear empty.
@@ -111,8 +105,8 @@ uintptr_t uart_platform_base(int idx)
 void uart_init(int idx)
 {
 	unsigned int div;
-	div = uart_baudrate_divisor(default_baudrate(), BAUDRATE_REFCLK,
-		BAUDRATE_OVERSAMPLE);
+	div = uart_baudrate_divisor(default_baudrate(), uart_platform_refclk(),
+		uart_input_clock_divider());
 	uart8250_init(uart_platform_base(idx), div);
 }
 
@@ -139,6 +133,8 @@ void uart_fill_lb(void *data)
 	serial.baseaddr = uart_platform_base(CONFIG_UART_FOR_CONSOLE);
 	serial.baud = default_baudrate();
 	serial.regwidth = 1;
+	serial.input_hertz = uart_platform_refclk();
+	serial.uart_pci_addr = CONFIG_UART_PCI_ADDR;
 	lb_add_serial(&serial, data);
 
 	lb_add_console(LB_TAG_CONSOLE_SERIAL8250, data);

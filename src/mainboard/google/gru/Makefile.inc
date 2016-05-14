@@ -13,15 +13,12 @@
 ## GNU General Public License for more details.
 ##
 
-bootblock-y += boardid.c
 bootblock-y += bootblock.c
 bootblock-y += chromeos.c
 bootblock-y += memlayout.ld
 bootblock-y += reset.c
 
-verstage-y += boardid.c
 verstage-y += chromeos.c
-verstage-y += memlayout.ld
 verstage-y += memlayout.ld
 verstage-y += reset.c
 
@@ -29,6 +26,7 @@ romstage-y += boardid.c
 romstage-y += chromeos.c
 romstage-y += memlayout.ld
 romstage-y += reset.c
+romstage-y += sdram_configs.c
 
 ramstage-y += boardid.c
 ramstage-y += chromeos.c

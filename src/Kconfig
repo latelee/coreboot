@@ -199,6 +199,14 @@ config INCLUDE_CONFIG_FILE
 	    config                         0x8d740    raw          3324
 	    (empty)                        0x8e480    null         3610440
 
+config NO_XIP_EARLY_STAGES
+	bool
+	default n if ARCH_X86
+	default y
+	help
+	  Identify if --xip parameter needs to be passed into cbfstool for early
+	  stages.
+
 config EARLY_CBMEM_INIT
 	def_bool !LATE_CBMEM_INIT
 
@@ -254,14 +262,12 @@ config CACHE_RELOCATED_RAMSTAGE_OUTSIDE_CBMEM
 	 The relocated ramstage is saved in an area specified by the
 	 by the board and/or chipset.
 
-config FLASHMAP_OFFSET
-	hex "Flash Map Offset"
-	default 0x00670000 if NORTHBRIDGE_INTEL_SANDYBRIDGE
-	default 0x00610000 if NORTHBRIDGE_INTEL_IVYBRIDGE
-	default CBFS_SIZE if !ARCH_X86
-	default 0
+config NO_STAGE_CACHE
+	bool
+	default n
 	help
-	  Offset of flash map in firmware image
+	 Do not save any component in stage cache for resume path. On resume,
+	 all components would be read back from CBFS again.
 
 # TODO: This doesn't belong here, move to src/arch/x86/Kconfig
 choice
@@ -657,15 +663,6 @@ config ACPI_NHLT
 	default n
 	help
 	  Build support for NHLT (non HD Audio) ACPI table generation.
-
-
-config COREBOOT_TABLE_SIZE
-	hex
-	default 0x8000 if ARCH_X86
-	default 0x2000 if !ARCH_X86
-	help
-	  The amount of memory to reserve for the coreboot tables in
-	  cbmem.
 
 #These Options are here to avoid "undefined" warnings.
 #The actual selection and help texts are in the following menu.

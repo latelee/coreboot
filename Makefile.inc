@@ -647,7 +647,6 @@ cbfs-files=$(cbfs-files-fixed) $(cbfs-files-aligned) $(cbfs-files-regular)
 prebuilt-files = $(foreach file,$(cbfs-files), $(call extract_nth,1,$(file)))
 prebuild-files = $(foreach file,$(cbfs-files), $(call cbfs-add-cmd,$(file),$(CONFIG_UPDATE_IMAGE)))
 
-ifneq ($(CONFIG_UPDATE_IMAGE),y)
 ifeq ($(CONFIG_FMDFILE),)
 # For a description of the flash layout described by these variables, check
 # the $(DEFAULT_FLASHMAP) .fmd files.
@@ -700,13 +699,14 @@ $(obj)/fmap.fmd: $(CONFIG_FMDFILE) $(obj)/config.h
 endif # ifeq ($(CONFIG_FMDFILE),)
 
 # generated at the same time as fmap.fmap
-$(obj)/fmap.h: $(obj)/fmap.fmap
+$(obj)/fmap_config.h: $(obj)/fmap.fmap
 $(obj)/fmap.desc: $(obj)/fmap.fmap
 
 $(obj)/fmap.fmap: $(obj)/fmap.fmd $(FMAPTOOL)
-	echo "    FMAP       $(FMAPTOOL) -h $(obj)/fmap.h $< $@"
-	$(FMAPTOOL) -h $(obj)/fmap.h -R $(obj)/fmap.desc $< $@
+	echo "    FMAP       $(FMAPTOOL) -h $(obj)/fmap_config.h $< $@"
+	$(FMAPTOOL) -h $(obj)/fmap_config.h -R $(obj)/fmap.desc $< $@
 
+ifneq ($(CONFIG_UPDATE_IMAGE),y)
 $(obj)/coreboot.pre: $(objcbfs)/bootblock.bin $$(prebuilt-files) $(CBFSTOOL) $$(cpu_ucode_cbfs_file) $(obj)/fmap.fmap $(obj)/fmap.desc
 	$(CBFSTOOL) $@.tmp create -M $(obj)/fmap.fmap -r $(shell cat $(obj)/fmap.desc)
 ifeq ($(CONFIG_ARCH_X86),y)
@@ -798,23 +798,26 @@ ifeq ($(CONFIG_ARCH_ROMSTAGE_X86_32)$(CONFIG_ARCH_ROMSTAGE_X86_64),y)
 #
 # Make sure that segment for .car.data is ignored while adding romstage.
 $(CONFIG_CBFS_PREFIX)/romstage-align := 64
-$(CONFIG_CBFS_PREFIX)/romstage-options := --xip -S .car.data -P $(CONFIG_XIP_ROM_SIZE)
-endif
+$(CONFIG_CBFS_PREFIX)/romstage-options := -S ".car.data"
+
+# If CAR does not support execution of code, romstage on x86 is expected to be
+# xip.
+ifneq ($(CONFIG_NO_XIP_EARLY_STAGES),y)
+$(CONFIG_CBFS_PREFIX)/romstage-options += --xip
+
+# If XIP_ROM_SIZE isn't being used don't overly constrain romstage by passing
+# -P with a default value.
+ifneq ($(CONFIG_NO_FIXED_XIP_ROM_SIZE),y)
+$(CONFIG_CBFS_PREFIX)/romstage-options += -P $(CONFIG_XIP_ROM_SIZE)
+endif    # CONFIG_NO_FIXED_XIP_ROM_SIZE
+
+endif   # CONFIG_NO_XIP_EARLY_STAGES
+endif   # CONFIG_ARCH_ROMSTAGE_X86_32 / CONFIG_ARCH_ROMSTAGE_X86_64
 
 cbfs-files-y += $(CONFIG_CBFS_PREFIX)/ramstage
 $(CONFIG_CBFS_PREFIX)/ramstage-file := $(objcbfs)/ramstage.elf
 $(CONFIG_CBFS_PREFIX)/ramstage-type := stage
 $(CONFIG_CBFS_PREFIX)/ramstage-compression := $(CBFS_COMPRESS_FLAG)
-
-cbfs-files-y += $(CONFIG_CBFS_PREFIX)/payload
-$(CONFIG_CBFS_PREFIX)/payload-file := $(CONFIG_PAYLOAD_FILE)
-ifeq ($(CONFIG_PAYLOAD_IS_FLAT_BINARY),y)
-$(CONFIG_CBFS_PREFIX)/payload-type := flat-binary
-else
-$(CONFIG_CBFS_PREFIX)/payload-type := payload
-endif
-$(CONFIG_CBFS_PREFIX)/payload-compression := $(CBFS_PAYLOAD_COMPRESS_FLAG)
-$(CONFIG_CBFS_PREFIX)/payload-options := $(ADDITIONAL_PAYLOAD_CONFIG)
 
 cbfs-files-$(CONFIG_HAVE_REFCODE_BLOB) += $(CONFIG_CBFS_PREFIX)/refcode
 $(CONFIG_CBFS_PREFIX)/refcode-file := $(REFCODE_BLOB)

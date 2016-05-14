@@ -38,6 +38,57 @@
 #include <thread.h>
 
 #define MAX_APIC_IDS 256
+
+typedef void (*mp_callback_t)(void);
+
+/*
+ * A mp_flight_record details a sequence of calls for the APs to perform
+ * along with the BSP to coordinate sequencing. Each flight record either
+ * provides a barrier for each AP before calling the callback or the APs
+ * are allowed to perform the callback without waiting. Regardless, each
+ * record has the cpus_entered field incremented for each record. When
+ * the BSP observes that the cpus_entered matches the number of APs
+ * the bsp_call is called with bsp_arg and upon returning releases the
+ * barrier allowing the APs to make further progress.
+ *
+ * Note that ap_call() and bsp_call() can be NULL. In the NULL case the
+ * callback will just not be called.
+ */
+struct mp_flight_record {
+	atomic_t barrier;
+	atomic_t cpus_entered;
+	mp_callback_t ap_call;
+	mp_callback_t bsp_call;
+} __attribute__((aligned(CACHELINE_SIZE)));
+
+#define _MP_FLIGHT_RECORD(barrier_, ap_func_, bsp_func_) \
+	{							\
+		.barrier = ATOMIC_INIT(barrier_),		\
+		.cpus_entered = ATOMIC_INIT(0),			\
+		.ap_call = ap_func_,				\
+		.bsp_call = bsp_func_,				\
+	}
+
+#define MP_FR_BLOCK_APS(ap_func_, bsp_func_) \
+	_MP_FLIGHT_RECORD(0, ap_func_, bsp_func_)
+
+#define MP_FR_NOBLOCK_APS(ap_func_, bsp_func_) \
+	_MP_FLIGHT_RECORD(1, ap_func_, bsp_func_)
+
+/* The mp_params structure provides the arguments to the mp subsystem
+ * for bringing up APs. */
+struct mp_params {
+	int num_cpus; /* Total cpus include BSP */
+	int parallel_microcode_load;
+	const void *microcode_pointer;
+	/* adjust_apic_id() is called for every potential apic id in the
+	 * system up from 0 to CONFIG_MAX_CPUS. Return adjusted apic_id. */
+	int (*adjust_apic_id)(int index, int apic_id);
+	/* Flight plan  for APs and BSP. */
+	struct mp_flight_record *flight_plan;
+	int num_records;
+};
+
 /* This needs to match the layout in the .module_parametrs section. */
 struct sipi_params {
 	uint16_t gdtlimit;
@@ -129,7 +180,7 @@ static void ap_do_flight_plan(void)
 		barrier_wait(&rec->barrier);
 
 		if (rec->ap_call != NULL) {
-			rec->ap_call(rec->ap_arg);
+			rec->ap_call();
 		}
 	}
 }
@@ -477,7 +528,7 @@ static int bsp_do_flight_plan(struct mp_params *mp_params)
 		}
 
 		if (rec->bsp_call != NULL) {
-			rec->bsp_call(rec->bsp_arg);
+			rec->bsp_call();
 		}
 
 		release_barrier(&rec->barrier);
@@ -515,7 +566,26 @@ static void init_bsp(struct bus *cpu_bus)
 	cpus[info->index].apic_id = cpu_path.apic.apic_id;
 }
 
-int mp_init(struct bus *cpu_bus, struct mp_params *p)
+/*
+ * mp_init() will set up the SIPI vector and bring up the APs according to
+ * mp_params. Each flight record will be executed according to the plan. Note
+ * that the MP infrastructure uses SMM default area without saving it. It's
+ * up to the chipset or mainboard to either e820 reserve this area or save this
+ * region prior to calling mp_init() and restoring it after mp_init returns.
+ *
+ * At the time mp_init() is called the MTRR MSRs are mirrored into APs then
+ * caching is enabled before running the flight plan.
+ *
+ * The MP initialization has the following properties:
+ * 1. APs are brought up in parallel.
+ * 2. The ordering of coreboot cpu number and APIC ids is not deterministic.
+ *    Therefore, one cannot rely on this property or the order of devices in
+ *    the device tree unless the chipset or mainboard know the APIC ids
+ *    a priori.
+ *
+ * mp_init() returns < 0 on error, 0 on success.
+ */
+static int mp_init(struct bus *cpu_bus, struct mp_params *p)
 {
 	int num_cpus;
 	int num_aps;
@@ -565,6 +635,7 @@ int mp_init(struct bus *cpu_bus, struct mp_params *p)
 }
 
 // qemu跟踪后，不在此处调用cpu_initialize的
+/* Calls cpu_initialize(info->index) which calls the coreboot CPU drivers. */
 void mp_initialize_cpu(void *unused)
 {
 	/* Call back into driver infrastructure for the AP initialization.   */
@@ -572,7 +643,8 @@ void mp_initialize_cpu(void *unused)
 	cpu_initialize(info->index);
 }
 
-int mp_get_apic_id(int cpu_slot)
+/* Returns apic id for coreboot cpu number or < 0 on failure. */
+static int mp_get_apic_id(int cpu_slot)
 {
 	if (cpu_slot >= CONFIG_MAX_CPUS || cpu_slot < 0)
 		return -1;
@@ -608,4 +680,246 @@ void smm_initiate_relocation(void)
 	spin_lock(&smm_relocation_lock);
 	smm_initiate_relocation_parallel();
 	spin_unlock(&smm_relocation_lock);
+}
+
+struct mp_state {
+	struct mp_ops ops;
+	int cpu_count;
+	uintptr_t perm_smbase;
+	size_t perm_smsize;
+	size_t smm_save_state_size;
+	int do_smm;
+} mp_state;
+
+static int is_smm_enabled(void)
+{
+	return IS_ENABLED(CONFIG_HAVE_SMI_HANDLER) && mp_state.do_smm;
+}
+
+static void smm_disable(void)
+{
+	mp_state.do_smm = 0;
+}
+
+static void smm_enable(void)
+{
+	if (IS_ENABLED(CONFIG_HAVE_SMI_HANDLER))
+		mp_state.do_smm = 1;
+}
+
+static void asmlinkage smm_do_relocation(void *arg)
+{
+	const struct smm_module_params *p;
+	const struct smm_runtime *runtime;
+	int cpu;
+	uintptr_t curr_smbase;
+	uintptr_t perm_smbase;
+
+	p = arg;
+	runtime = p->runtime;
+	cpu = p->cpu;
+	curr_smbase = runtime->smbase;
+
+	if (cpu >= CONFIG_MAX_CPUS) {
+		printk(BIOS_CRIT,
+		       "Invalid CPU number assigned in SMM stub: %d\n", cpu);
+		return;
+	}
+
+	/*
+	 * The permanent handler runs with all cpus concurrently. Precalculate
+	 * the location of the new SMBASE. If using SMM modules then this
+	 * calculation needs to match that of the module loader.
+	 */
+	perm_smbase = mp_state.perm_smbase;
+	perm_smbase -= cpu * runtime->save_state_size;
+
+	printk(BIOS_DEBUG, "New SMBASE 0x%08lx\n", perm_smbase);
+
+	/* Setup code checks this callback for validity. */
+	mp_state.ops.relocation_handler(cpu, curr_smbase, perm_smbase);
+}
+
+static void adjust_smm_apic_id_map(struct smm_loader_params *smm_params)
+{
+	int i;
+	struct smm_runtime *runtime = smm_params->runtime;
+
+	for (i = 0; i < CONFIG_MAX_CPUS; i++)
+		runtime->apic_id_to_cpu[i] = mp_get_apic_id(i);
+}
+
+static int install_relocation_handler(int num_cpus, size_t save_state_size)
+{
+	struct smm_loader_params smm_params = {
+		.per_cpu_stack_size = save_state_size,
+		.num_concurrent_stacks = num_cpus,
+		.per_cpu_save_state_size = save_state_size,
+		.num_concurrent_save_states = 1,
+		.handler = smm_do_relocation,
+	};
+
+	/* Allow callback to override parameters. */
+	if (mp_state.ops.adjust_smm_params != NULL)
+		mp_state.ops.adjust_smm_params(&smm_params, 0);
+
+	if (smm_setup_relocation_handler(&smm_params))
+		return -1;
+
+	adjust_smm_apic_id_map(&smm_params);
+
+	return 0;
+}
+
+static int install_permanent_handler(int num_cpus, uintptr_t smbase,
+					size_t smsize, size_t save_state_size)
+{
+	/* There are num_cpus concurrent stacks and num_cpus concurrent save
+	 * state areas. Lastly, set the stack size to the save state size. */
+	struct smm_loader_params smm_params = {
+		.per_cpu_stack_size = save_state_size,
+		.num_concurrent_stacks = num_cpus,
+		.per_cpu_save_state_size = save_state_size,
+		.num_concurrent_save_states = num_cpus,
+	};
+
+	/* Allow callback to override parameters. */
+	if (mp_state.ops.adjust_smm_params != NULL)
+		mp_state.ops.adjust_smm_params(&smm_params, 1);
+
+	printk(BIOS_DEBUG, "Installing SMM handler to 0x%08lx\n", smbase);
+
+	if (smm_load_module((void *)smbase, smsize, &smm_params))
+		return -1;
+
+	adjust_smm_apic_id_map(&smm_params);
+
+	return 0;
+}
+
+/* Load SMM handlers as part of MP flight record. */
+static void load_smm_handlers(void)
+{
+	size_t smm_save_state_size = mp_state.smm_save_state_size;
+
+	/* Do nothing if SMM is disabled.*/
+	if (!is_smm_enabled())
+		return;
+
+	/* Install handlers. */
+	if (install_relocation_handler(mp_state.cpu_count,
+		smm_save_state_size) < 0) {
+		printk(BIOS_ERR, "Unable to install SMM relocation handler.\n");
+		smm_disable();
+	}
+
+	if (install_permanent_handler(mp_state.cpu_count, mp_state.perm_smbase,
+		mp_state.perm_smsize, smm_save_state_size) < 0) {
+		printk(BIOS_ERR, "Unable to install SMM permanent handler.\n");
+		smm_disable();
+	}
+
+	/* Ensure the SMM handlers hit DRAM before performing first SMI. */
+	wbinvd();
+
+	/*
+	 * Indicate that the SMM handlers have been loaded and MP
+	 * initialization is about to start.
+	 */
+	if (is_smm_enabled() && mp_state.ops.pre_mp_smm_init != NULL)
+		mp_state.ops.pre_mp_smm_init();
+}
+
+/* Trigger SMM as part of MP flight record. */
+static void trigger_smm_relocation(void)
+{
+	/* Do nothing if SMM is disabled.*/
+	if (!is_smm_enabled() || mp_state.ops.per_cpu_smm_trigger == NULL)
+		return;
+	/* Trigger SMM mode for the currently running processor. */
+	mp_state.ops.per_cpu_smm_trigger();
+}
+
+static struct mp_flight_record mp_steps[] = {
+	/* Once the APs are up load the SMM handlers. */
+	MP_FR_BLOCK_APS(NULL, load_smm_handlers),
+	/* Perform SMM relocation. */
+	MP_FR_NOBLOCK_APS(trigger_smm_relocation, trigger_smm_relocation),
+	/* Initialize each cpu through the driver framework. */
+	MP_FR_BLOCK_APS(mp_initialize_cpu, mp_initialize_cpu),
+	/* Wait for APs to finish everything else then let them park. */
+	MP_FR_BLOCK_APS(NULL, NULL),
+};
+
+static void fill_mp_state(struct mp_state *state, const struct mp_ops *ops)
+{
+	/*
+	 * Make copy of the ops so that defaults can be set in the non-const
+	 * structure if needed.
+	 */
+	memcpy(&state->ops, ops, sizeof(*ops));
+
+	if (ops->get_cpu_count != NULL)
+		state->cpu_count = ops->get_cpu_count();
+
+	if (ops->get_smm_info != NULL)
+		ops->get_smm_info(&state->perm_smbase, &state->perm_smsize,
+					&state->smm_save_state_size);
+
+	/*
+	 * Default to smm_initiate_relocation() if trigger callback isn't
+	 * provided.
+	 */
+	if (IS_ENABLED(CONFIG_HAVE_SMI_HANDLER) &&
+		ops->per_cpu_smm_trigger == NULL)
+		mp_state.ops.per_cpu_smm_trigger = smm_initiate_relocation;
+}
+
+int mp_init_with_smm(struct bus *cpu_bus, const struct mp_ops *mp_ops)
+{
+	int ret;
+	void *default_smm_area;
+	struct mp_params mp_params;
+
+	if (mp_ops->pre_mp_init != NULL)
+		mp_ops->pre_mp_init();
+
+	fill_mp_state(&mp_state, mp_ops);
+
+	memset(&mp_params, 0, sizeof(mp_params));
+
+	if (mp_state.cpu_count <= 0) {
+		printk(BIOS_ERR, "Invalid cpu_count: %d\n", mp_state.cpu_count);
+		return -1;
+	}
+
+	/* Sanity check SMM state. */
+	if (mp_state.perm_smsize != 0 && mp_state.smm_save_state_size != 0 &&
+		mp_state.ops.relocation_handler != NULL)
+		smm_enable();
+
+	if (is_smm_enabled())
+		printk(BIOS_INFO, "Will perform SMM setup.\n");
+
+	mp_params.num_cpus = mp_state.cpu_count;
+	/* Gather microcode information. */
+	if (mp_state.ops.get_microcode_info != NULL)
+		mp_state.ops.get_microcode_info(&mp_params.microcode_pointer,
+			&mp_params.parallel_microcode_load);
+	mp_params.adjust_apic_id = mp_state.ops.adjust_cpu_apic_entry;
+	mp_params.flight_plan = &mp_steps[0];
+	mp_params.num_records = ARRAY_SIZE(mp_steps);
+
+	/* Perform backup of default SMM area. */
+	default_smm_area = backup_default_smm_area();
+
+	ret = mp_init(cpu_bus, &mp_params);
+
+	restore_default_smm_area(default_smm_area);
+
+	/* Signal callback on success if it's provided. */
+	if (ret == 0 && mp_state.ops.post_mp_init != NULL)
+		mp_state.ops.post_mp_init();
+
+	return ret;
 }

@@ -15,6 +15,7 @@
  * GNU General Public License for more details.
  */
 
+#include <arch/cbconfig.h>
 #include <console/console.h>
 #include <console/uart.h>
 #include <ip_checksum.h>
@@ -118,6 +119,8 @@ void lb_add_serial(struct lb_serial *new_serial, void *data)
 	serial->baseaddr = new_serial->baseaddr;
 	serial->baud = new_serial->baud;
 	serial->regwidth = new_serial->regwidth;
+	serial->input_hertz = new_serial->input_hertz;
+	serial->uart_pci_addr = new_serial->uart_pci_addr;
 }
 
 void lb_add_console(uint16_t consoletype, void *data)
@@ -560,7 +563,7 @@ void write_tables(void)
 	uintptr_t cbtable_start;
 	uintptr_t cbtable_end;
 	size_t cbtable_size;
-	const size_t max_table_size = CONFIG_COREBOOT_TABLE_SIZE;
+	const size_t max_table_size = COREBOOT_TABLE_SIZE;
 
 	cbtable_start = (uintptr_t)cbmem_add(CBMEM_ID_CBTABLE, max_table_size);
 

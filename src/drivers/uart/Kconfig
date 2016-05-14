@@ -13,6 +13,20 @@ config DRIVERS_UART_8250IO
 config NO_UART_ON_SUPERIO
 	def_bool n
 
+config UART_OVERRIDE_INPUT_CLOCK_DIVIDER
+	boolean
+	default n
+	help
+	  Set to "y" when the platform overrides the uart_input_clock_divider
+	  routine.
+
+config UART_OVERRIDE_REFCLK
+	boolean
+	default n
+	help
+	  Set to "y" when the platform overrides the uart_platform_refclk
+	  routine.
+
 config DRIVERS_UART_8250MEM
 	bool
 	default n
@@ -32,6 +46,7 @@ config DRIVERS_UART_OXPCIE
 	depends on PCI
 	select DRIVERS_UART_8250MEM
 	select EARLY_PCI_BRIDGE
+	select UART_OVERRIDE_REFCLK
 	help
 	  Support for Oxford OXPCIe952 serial port PCIe cards.
 	  Currently only devices with the vendor ID 0x1415 and device ID
@@ -41,3 +56,20 @@ config DRIVERS_UART_PL011
 	bool
 	default n
 	select HAVE_UART_SPECIAL
+
+config UART_USE_REFCLK_AS_INPUT_CLOCK
+	bool
+	default n
+	help
+	  Use uart_platform_refclk to specify the input clock value.
+
+config UART_PCI_ADDR
+	hex "UART's PCI bus, device, function address"
+	default 0
+	help
+	  Specify zero if the UART is connected to another bus type.
+	  For PCI based UARTs, build the value as:
+	  * 1 << 31 - Valid bit, PCI UART in use
+	  * Bus << 20
+	  * Device << 15
+	  * Function << 12

@@ -15,51 +15,53 @@
  * GNU General Public License for more details.
  */
 
+#include <console/console.h>
 #include <device/device.h>
 #include <device/pci.h>
 #include <device/pci_ids.h>
 #include <soc/acpi.h>
-#include <soc/pci_ids.h>
-#include <reg_script.h>
-#include <vendorcode/google/chromeos/chromeos.h>
 #include <soc/lpc.h>
+#include <soc/pci_ids.h>
+
 #include "chip.h"
 
-static const struct reg_script lpc_serirq_enable[] = {
-	/* Setup SERIRQ, enable continuous mode */
-	REG_PCI_OR8(SERIRQ_CNTL, (1 << 7) | (1 << 6)),
-#if !IS_ENABLED(CONFIG_SERIRQ_CONTINUOUS_MODE)
-	REG_PCI_RMW8(SERIRQ_CNTL, ~(1 << 6), 0),
-#endif
-	REG_SCRIPT_END
-};
-
-static void enable_lpc_decode(struct device *lpc)
-{
-	const struct soc_intel_apollolake_config *config;
-
-	if (!lpc || !lpc->chip_info)
-		return;
-
-	config = lpc->chip_info;
-
-	/* Enable requested fixed IO decode ranges */
-	pci_write_config16(lpc, LPC_EN, config->lpc_dec);
-
-	/* Enable generic IO decode ranges */
-	pci_write_config32(lpc, LPC_GEN1_DEC, config->gen1_dec);
-	pci_write_config32(lpc, LPC_GEN2_DEC, config->gen2_dec);
-	pci_write_config32(lpc, LPC_GEN3_DEC, config->gen3_dec);
-	pci_write_config32(lpc, LPC_GEN4_DEC, config->gen4_dec);
-}
-
+/*
+ * SCOPE:
+ * The purpose of this driver is to eliminate manual resource allocation for
+ * devices under the LPC bridge.
+ *
+ * BACKGROUND:
+ * The resource allocator reserves IO and memory resources to devices on the
+ * LPC bus, but it is up to the hardware driver to make sure that those
+ * resources are decoded to the LPC bus. This is what this driver does.
+ *
+ * THEORY OF OPERATION:
+ * The .scan_bus member of the driver's ops will scan the static device tree
+ * (devicetree.cb) and invoke drivers of devices on the LPC bus. This creates
+ * a list of child devices, along with their resources. set_child_resources()
+ * parses that list and looks for resources needed by the child devices. It
+ * opens up IO and memory windows as needed.
+ */
 
 static void lpc_init(struct device *dev)
 {
-	enable_lpc_decode(dev);
-	reg_script_run_on_dev(dev, lpc_serirq_enable);
-}
+	uint8_t scnt;
+	struct soc_intel_apollolake_config *cfg;
 
+	cfg = dev->chip_info;
+	if (!cfg) {
+		printk(BIOS_ERR, "BUG! Could not find SOC devicetree config\n");
+		return;
+	}
+
+	scnt = pci_read_config8(dev, REG_SERIRQ_CTL);
+	scnt &= ~(SCNT_EN | SCNT_MODE);
+	if (cfg->serirq_mode == SERIRQ_QUIET)
+		scnt |= SCNT_EN;
+	else if (cfg->serirq_mode == SERIRQ_CONTINUOUS)
+		scnt |= SCNT_EN | SCNT_MODE;
+	pci_write_config8(dev, REG_SERIRQ_CTL, scnt);
+}
 
 static void soc_lpc_add_io_resources(device_t dev)
 {
@@ -81,13 +83,64 @@ static void soc_lpc_read_resources(device_t dev)
 	soc_lpc_add_io_resources(dev);
 }
 
+static void set_child_resources(struct device *dev);
+
+static void loop_resources(struct device *dev)
+{
+	struct resource *res;
+
+	for (res = dev->resource_list; res; res = res->next) {
+
+		if (res->flags & IORESOURCE_IO) {
+			lpc_open_pmio_window(res->base, res->size);
+		}
+
+		if (res->flags & IORESOURCE_MEM) {
+			/* Check if this is already decoded. */
+			if (lpc_fits_fixed_mmio_window(res->base, res->size))
+				continue;
+
+			lpc_open_mmio_window(res->base, res->size);
+		}
+
+	}
+	set_child_resources(dev);
+}
+
+/*
+ * Loop through all the child devices' resources, and open up windows to the
+ * LPC bus, as appropriate.
+ */
+static void set_child_resources(struct device *dev)
+{
+	struct bus *link;
+	struct device *child;
+
+	for (link = dev->link_list; link; link = link->next) {
+		for (child = link->children; child; child = child->sibling) {
+			loop_resources(child);
+		}
+	}
+}
+
+static void set_resources(device_t dev)
+{
+	pci_dev_set_resources(dev);
+
+	/* Close all previously opened windows and allocate from scratch. */
+	lpc_close_pmio_windows();
+	/* Now open up windows to devices which have declared resources. */
+	set_child_resources(dev);
+}
+
 static struct device_operations device_ops = {
 	.read_resources = &soc_lpc_read_resources,
-	.set_resources = &pci_dev_set_resources,
+	.set_resources = set_resources,
 	.enable_resources = &pci_dev_enable_resources,
 	.write_acpi_tables = southbridge_write_acpi_tables,
 	.acpi_inject_dsdt_generator = southbridge_inject_dsdt,
-	.init = &lpc_init
+	.init = lpc_init,
+	.scan_bus = scan_lpc_bus,
 };
 
 static const struct pci_driver soc_lpc __pci_driver = {

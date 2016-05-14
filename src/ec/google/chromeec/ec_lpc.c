@@ -14,6 +14,7 @@
  */
 
 #include <arch/io.h>
+#include <assert.h>
 #include <console/console.h>
 #include <delay.h>
 #include <device/pnp.h>
@@ -366,6 +367,26 @@ uint8_t google_chromeec_get_switches(void)
 	return read_byte(EC_LPC_ADDR_MEMMAP + EC_MEMMAP_SWITCHES);
 }
 
+void google_chromeec_ioport_range(uint16_t *out_base, size_t *out_size)
+{
+	uint16_t base;
+	size_t size;
+
+	if (IS_ENABLED(CONFIG_EC_GOOGLE_CHROMEEC_MEC)) {
+		base = MEC_EMI_BASE;
+		size = MEC_EMI_SIZE;
+	} else {
+		base = EC_HOST_CMD_REGION0;
+		size = 2 * EC_HOST_CMD_REGION_SIZE;
+		/* Make sure MEMMAP region follows host cmd region. */
+		assert(base + size == EC_LPC_ADDR_MEMMAP);
+		size += EC_MEMMAP_SIZE;
+	}
+
+	*out_base = base;
+	*out_size = size;
+}
+
 #ifdef __PRE_RAM__
 
 int google_chromeec_command(struct chromeec_command *cec_command)
@@ -407,9 +428,29 @@ static void lpc_ec_init(struct device *dev)
 	google_chromeec_init();
 }
 
+/*
+ * Declare the IO ports that we are using:
+ *
+ * All ECs (not explicitly declared):
+ * 0x60/0x64, 0x62/0x66, 0x80, 0x200->0x207
+ *
+ * mec1322:	0x800->0x807
+ * All others:	0x800->0x9ff
+ *
+ * EC_GOOGLE_CHROMEEC_ACPI_MEMMAP is only used for MEC ECs.
+ */
 static void lpc_ec_read_resources(struct device *dev)
 {
-	/* Nothing, but this function avoids an error on serial console. */
+	unsigned int idx = 0;
+	struct resource * res;
+	uint16_t base;
+	size_t size;
+
+	google_chromeec_ioport_range(&base, &size);
+	res = new_resource(dev, idx++);
+	res->base = base;
+	res->size = size;
+	res->flags = IORESOURCE_IO | IORESOURCE_ASSIGNED | IORESOURCE_FIXED;
 }
 
 static void lpc_ec_enable_resources(struct device *dev)

@@ -201,6 +201,7 @@ typedef struct ramctr_timing_st {
 #define MAX_TIMA 127
 
 #define MAKE_ERR ((channel<<16)|(slotrank<<8)|1)
+#define GET_ERR_CHANNEL(x) (x>>16)
 
 static void program_timings(ramctr_timing * ctrl, int channel);
 
@@ -238,6 +239,18 @@ static void toggle_io_reset(void) {
 	udelay(1);
 	write32(DEFAULT_MCHBAR + 0x5030, r32 & ~0x20);
 	udelay(1);
+}
+
+/*
+ * Disable a channel in ramctr_timing.
+ */
+static void disable_channel(ramctr_timing *ctrl, int channel) {
+	ctrl->rankmap[channel] = 0;
+	memset(&ctrl->rank_mirror[channel][0], 0, sizeof(ctrl->rank_mirror[0]));
+	ctrl->channel_size_mb[channel] = 0;
+	ctrl->cmd_stretch[channel] = 0;
+	ctrl->mad_dimm[channel] = 0;
+	memset(&ctrl->timings[channel][0], 0, sizeof(ctrl->timings[0]));
 }
 
 /*
@@ -796,6 +809,17 @@ static void dram_freq(ramctr_timing * ctrl)
 
 		/* Frequency mulitplier.  */
 		u32 FRQ = get_FRQ(ctrl->tCK);
+
+		/* The PLL will never lock if the required frequency is
+		 * already set. Exit early to prevent a system hang.
+		 */
+		reg1 = MCHBAR32(0x5e04);
+		val2 = (u8) reg1;
+		if (val2 == FRQ) {
+			printk(BIOS_DEBUG, "MCU frequency is set at : %d MHz\n",
+			       (1000 << 8) / ctrl->tCK);
+			return;
+		}
 
 		/* Step 2 - Select frequency in the MCU */
 		reg1 = FRQ;
@@ -4252,6 +4276,37 @@ void init_dram_ddr3(spd_raw_data *spds, int mobile, int min_tck,
 
 		err = try_init_dram_ddr3(&ctrl, fast_boot, s3resume, me_uma_size);
 	}
+
+	if (err && (ctrl.tCK < TCK_400MHZ)) {
+		/* fallback: lower clock frequency */
+		printk(BIOS_ERR, "RAM training failed, trying fallback.\n");
+		printram("Decreasing clock frequency.\n");
+		ctrl.tCK++;
+		err = try_init_dram_ddr3(&ctrl, fast_boot, s3resume, me_uma_size);
+	}
+
+	if (err && (ctrl.tCK < TCK_400MHZ)) {
+		/* fallback: lower clock frequency */
+		printk(BIOS_ERR, "RAM training failed, trying fallback.\n");
+		printram("Decreasing clock frequency.\n");
+		ctrl.tCK++;
+		err = try_init_dram_ddr3(&ctrl, fast_boot, s3resume, me_uma_size);
+	}
+
+	if (err) {
+		/* fallback: disable failing channel */
+		printk(BIOS_ERR, "RAM training failed, trying fallback.\n");
+		printram("Disable failing channel.\n");
+
+		/* Reset DDR3 frequency */
+		dram_find_spds_ddr3(spds, &ctrl);
+
+		/* disable failing channel */
+		disable_channel(&ctrl, GET_ERR_CHANNEL(err));
+
+		err = try_init_dram_ddr3(&ctrl, fast_boot, s3resume, me_uma_size);
+	}
+
 	if (err)
 		die("raminit failed");
 
