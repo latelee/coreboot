@@ -24,6 +24,7 @@
 
 #define ACPIGEN_MAXLEN 0xfffff
 
+#include <lib.h>
 #include <string.h>
 #include <arch/acpigen.h>
 #include <console/console.h>
@@ -72,6 +73,20 @@ void acpigen_emit_byte(unsigned char b)
 	(*gencurrent++) = b;
 }
 
+void acpigen_emit_word(unsigned int data)
+{
+	acpigen_emit_byte(data & 0xff);
+	acpigen_emit_byte((data >> 8) & 0xff);
+}
+
+void acpigen_emit_dword(unsigned int data)
+{
+	acpigen_emit_byte(data & 0xff);
+	acpigen_emit_byte((data >> 8) & 0xff);
+	acpigen_emit_byte((data >> 16) & 0xff);
+	acpigen_emit_byte((data >> 24) & 0xff);
+}
+
 void acpigen_write_package(int nr_el)
 {
 	/* package op */
@@ -87,28 +102,69 @@ void acpigen_write_byte(unsigned int data)
 	acpigen_emit_byte(data & 0xff);
 }
 
+void acpigen_write_word(unsigned int data)
+{
+	/* word op */
+	acpigen_emit_byte(0xb);
+	acpigen_emit_word(data);
+}
+
 void acpigen_write_dword(unsigned int data)
 {
 	/* dword op */
 	acpigen_emit_byte(0xc);
-	acpigen_emit_byte(data & 0xff);
-	acpigen_emit_byte((data >> 8) & 0xff);
-	acpigen_emit_byte((data >> 16) & 0xff);
-	acpigen_emit_byte((data >> 24) & 0xff);
+	acpigen_emit_dword(data);
 }
 
 void acpigen_write_qword(uint64_t data)
 {
 	/* qword op */
 	acpigen_emit_byte(0xe);
-	acpigen_emit_byte(data & 0xff);
-	acpigen_emit_byte((data >> 8) & 0xff);
-	acpigen_emit_byte((data >> 16) & 0xff);
-	acpigen_emit_byte((data >> 24) & 0xff);
-	acpigen_emit_byte((data >> 32) & 0xff);
-	acpigen_emit_byte((data >> 40) & 0xff);
-	acpigen_emit_byte((data >> 48) & 0xff);
-	acpigen_emit_byte((data >> 56) & 0xff);
+	acpigen_emit_dword(data & 0xffffffff);
+	acpigen_emit_dword((data >> 32) & 0xffffffff);
+}
+
+void acpigen_write_zero(void)
+{
+	acpigen_emit_byte(0x00);
+}
+
+void acpigen_write_one(void)
+{
+	acpigen_emit_byte(0x01);
+}
+
+void acpigen_write_ones(void)
+{
+	acpigen_emit_byte(0xff);
+}
+
+void acpigen_write_integer(uint64_t data)
+{
+	if (data == 0)
+		acpigen_write_zero();
+	else if (data == 1)
+		acpigen_write_one();
+	else if (data <= 0xff)
+		acpigen_write_byte((unsigned char)data);
+	else if (data <= 0xffff)
+		acpigen_write_word((unsigned int)data);
+	else if (data <= 0xffffffff)
+		acpigen_write_dword((unsigned int)data);
+	else
+		acpigen_write_qword(data);
+}
+
+void acpigen_write_name_zero(const char *name)
+{
+	acpigen_write_name(name);
+	acpigen_write_one();
+}
+
+void acpigen_write_name_one(const char *name)
+{
+	acpigen_write_name(name);
+	acpigen_write_zero();
 }
 
 void acpigen_write_name_byte(const char *name, uint8_t val)
@@ -129,12 +185,36 @@ void acpigen_write_name_qword(const char *name, uint64_t val)
 	acpigen_write_qword(val);
 }
 
+void acpigen_write_name_integer(const char *name, uint64_t val)
+{
+	acpigen_write_name(name);
+	acpigen_write_integer(val);
+}
+
+void acpigen_write_name_string(const char *name, const char *string)
+{
+	acpigen_write_name(name);
+	acpigen_write_string(string);
+}
+
 void acpigen_emit_stream(const char *data, int size)
 {
 	int i;
 	for (i = 0; i < size; i++) {
 		acpigen_emit_byte(data[i]);
 	}
+}
+
+void acpigen_emit_string(const char *string)
+{
+	acpigen_emit_stream(string, string ? strlen(string) : 0);
+	acpigen_emit_byte('\0'); /* NUL */
+}
+
+void acpigen_write_string(const char *string)
+{
+	acpigen_emit_byte(0x0d);
+	acpigen_emit_string(string);
 }
 
 /*
@@ -261,10 +341,7 @@ void acpigen_write_processor(u8 cpuindex, u32 pblock_addr, u8 pblock_len)
 		 "\\_PR.CP%02d", (unsigned int) cpuindex);
 	acpigen_emit_namestring(pscope);
 	acpigen_emit_byte(cpuindex);
-	acpigen_emit_byte(pblock_addr & 0xff);
-	acpigen_emit_byte((pblock_addr >> 8) & 0xff);
-	acpigen_emit_byte((pblock_addr >> 16) & 0xff);
-	acpigen_emit_byte((pblock_addr >> 24) & 0xff);
+	acpigen_emit_dword(pblock_addr);
 	acpigen_emit_byte(pblock_len);
 }
 
@@ -366,11 +443,22 @@ void acpigen_write_method(const char *name, int nargs)
 
 void acpigen_write_device(const char *name)
 {
-	/* method op */
+	/* device op */
 	acpigen_emit_byte(0x5b);
 	acpigen_emit_byte(0x82);
 	acpigen_write_len_f();
 	acpigen_emit_namestring(name);
+}
+
+void acpigen_write_STA(uint8_t status)
+{
+	/*
+	 * Method (_STA, 0, NotSerialized) { Return (status) }
+	 */
+	acpigen_write_method("_STA", 0);
+	acpigen_emit_byte(0xa4);
+	acpigen_write_byte(status);
+	acpigen_pop_len();
 }
 
 /*
@@ -424,6 +512,18 @@ void acpigen_write_TPC(const char *gnvs_tpc_limit)
 	acpigen_write_method("_TPC", 0);
 	acpigen_emit_byte(0xa4);		/* ReturnOp */
 	acpigen_emit_namestring(gnvs_tpc_limit);
+	acpigen_pop_len();
+}
+
+void acpigen_write_PRW(u32 wake, u32 level)
+{
+	/*
+	 * Name (_PRW, Package () { wake, level }
+	 */
+	acpigen_write_name("_PRW");
+	acpigen_write_package(2);
+	acpigen_write_integer(wake);
+	acpigen_write_integer(level);
 	acpigen_pop_len();
 }
 
@@ -557,14 +657,8 @@ void acpigen_write_mem32fixed(int readwrite, u32 base, u32 size)
 	acpigen_emit_byte(0x00);
 	/* bit1-7 are ignored */
 	acpigen_emit_byte(readwrite ? 0x01 : 0x00);
-	acpigen_emit_byte(base & 0xff);
-	acpigen_emit_byte((base >> 8) & 0xff);
-	acpigen_emit_byte((base >> 16) & 0xff);
-	acpigen_emit_byte((base >> 24) & 0xff);
-	acpigen_emit_byte(size & 0xff);
-	acpigen_emit_byte((size >> 8) & 0xff);
-	acpigen_emit_byte((size >> 16) & 0xff);
-	acpigen_emit_byte((size >> 24) & 0xff);
+	acpigen_emit_dword(base);
+	acpigen_emit_dword(size);
 }
 
 void acpigen_write_register(acpi_addr_t *addr)
@@ -576,14 +670,8 @@ void acpigen_write_register(acpi_addr_t *addr)
 	acpigen_emit_byte(addr->bit_width);	/* Register Bit Width */
 	acpigen_emit_byte(addr->bit_offset);	/* Register Bit Offset */
 	acpigen_emit_byte(addr->resv);		/* Register Access Size */
-	acpigen_emit_byte(addr->addrl & 0xff);	/* Register Address Low */
-	acpigen_emit_byte((addr->addrl >> 8) & 0xff);
-	acpigen_emit_byte((addr->addrl >> 16) & 0xff);
-	acpigen_emit_byte((addr->addrl >> 24) & 0xff);
-	acpigen_emit_byte(addr->addrh & 0xff);	/* Register Address High */
-	acpigen_emit_byte((addr->addrh >> 8) & 0xff);
-	acpigen_emit_byte((addr->addrh >> 16) & 0xff);
-	acpigen_emit_byte((addr->addrh >> 24) & 0xff);
+	acpigen_emit_dword(addr->addrl);	/* Register Address Low */
+	acpigen_emit_dword(addr->addrh);	/* Register Address High */
 }
 
 void acpigen_write_irq(u16 mask)
@@ -739,4 +827,39 @@ void acpigen_emit_eisaid(const char *eisaid)
 	acpigen_emit_byte((compact >> 16) & 0xff);
 	acpigen_emit_byte((compact >> 8) & 0xff);
 	acpigen_emit_byte(compact & 0xff);
+}
+
+/*
+ * ToUUID(uuid)
+ *
+ * ACPI 6.1 Section 19.6.136 table 19-385 defines a special output
+ * order for the bytes that make up a UUID Buffer object.
+ * UUID byte order for input:
+ *   aabbccdd-eeff-gghh-iijj-kkllmmnnoopp
+ * UUID byte order for output:
+ *   ddccbbaa-ffee-hhgg-iijj-kkllmmnnoopp
+ */
+#define UUID_LEN 16
+void acpigen_write_uuid(const char *uuid)
+{
+	uint8_t buf[UUID_LEN];
+	size_t i, order[UUID_LEN] = { 3, 2, 1, 0, 5, 4, 7, 6,
+				      8, 9, 10, 11, 12, 13, 14, 15 };
+
+	/* Parse UUID string into bytes */
+	if (hexstrtobin(uuid, buf, UUID_LEN) < UUID_LEN)
+		return;
+
+	/* BufferOp */
+	acpigen_emit_byte(0x11);
+	acpigen_write_len_f();
+
+	/* Buffer length in bytes */
+	acpigen_write_word(UUID_LEN);
+
+	/* Output UUID in expected order */
+	for (i = 0; i < UUID_LEN; i++)
+		acpigen_emit_byte(buf[order[i]]);
+
+	acpigen_pop_len();
 }

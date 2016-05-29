@@ -97,6 +97,7 @@ ifeq ($(CONFIG_ARCH_BOOTBLOCK_X86_32)$(CONFIG_ARCH_BOOTBLOCK_X86_64),y)
 bootblock-y += boot.c
 bootblock-y += memcpy.c
 bootblock-y += memset.c
+bootblock-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
 bootblock-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
 
 bootblock-y += id.S
@@ -177,6 +178,10 @@ verstage-y += memset.c
 verstage-y += memcpy.c
 verstage-y += memmove.c
 verstage-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
+# If C environment is used for bootblock it means there's no need
+# for a chipset-specific car_stage_entry() so use the generic one
+# which just calls verstage().
+verstage-$(CONFIG_C_ENVIRONMENT_BOOTBLOCK) += verstage.c
 
 verstage-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
 
@@ -349,6 +354,7 @@ ramstage-$(CONFIG_GENERATE_PIRQ_TABLE) += pirq_routing.c
 ramstage-$(CONFIG_HAVE_ACPI_TABLES) += acpi.c
 ramstage-$(CONFIG_GENERATE_SMBIOS_TABLES) += smbios.c
 ramstage-$(CONFIG_HAVE_ACPI_TABLES) += acpigen.c
+ramstage-$(CONFIG_HAVE_ACPI_TABLES) += acpi_device.c
 ramstage-$(CONFIG_HAVE_ACPI_RESUME) += wakeup.S
 
 ramstage-y += c_start.S
@@ -394,6 +400,7 @@ postcar-y += memset.c
 postcar-y += memcpy.c
 postcar-y += memmove.c
 postcar-y += memlayout.ld
+postcar-$(CONFIG_COLLECT_TIMESTAMPS) += timestamp.c
 postcar-$(CONFIG_X86_TOP4G_BOOTMEDIA_MAP) += mmap_boot.c
 
 $(objcbfs)/postcar.debug: $$(postcar-objs)

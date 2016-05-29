@@ -257,7 +257,7 @@ struct device *new_device(struct device *parent, struct device *busdev, const in
 		break;
 
 	case I2C:
-		new_d->path = ".type=DEVICE_PATH_I2C,{.i2c={ .device = 0x%x }}";
+		new_d->path = ".type=DEVICE_PATH_I2C,{.i2c={ .device = 0x%x, .mode_10bit = %d }}";
 		break;
 
 	case APIC:
@@ -278,6 +278,10 @@ struct device *new_device(struct device *parent, struct device *busdev, const in
 
 	case IOAPIC:
 		new_d->path = ".type=DEVICE_PATH_IOAPIC,{.ioapic={ .ioapic_id = 0x%x }}";
+		break;
+
+	case GENERIC:
+		new_d->path = ".type=DEVICE_PATH_GENERIC,{.generic={ .id = 0x%x, .subid = 0x%x }}";
 		break;
 	}
 	return new_d;

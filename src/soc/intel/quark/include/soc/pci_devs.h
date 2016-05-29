@@ -22,20 +22,33 @@
 #include <device/pci.h>
 #include <soc/QuarkNcSocId.h>
 
-/* DEVICE 0 (Memroy Controller Hub) */
-#define MC_BDF		PCI_DEV(PCI_BUS_NUMBER_QNC, MC_DEV, MC_FUN)
+/* DEVICE 0 (Memory Controller Hub) */
+#define MC_BDF			PCI_DEV(PCI_BUS_NUMBER_QNC, MC_DEV, MC_FUN)
 
 /* Device IDs */
+#define I2CGPIO_DEVID		0x0934
 #define HSUART_DEVID		0x0936
 #define EHCI_DEVID		0x0939
 
 /* IO Fabric 1 */
-#define SIO1_DEV 0x14
-# define HSUART1_DEV SIO1_DEV
-# define HSUART1_FUNC 5
+#define SIO1_DEV		0x14
+#define HSUART1_DEV		SIO1_DEV
+#define USB_DEV_PORT_FUNC	2
+#define EHCI_FUNC		3
+#define OHCI_FUNC		4
+#define HSUART1_FUNC		5
+
+/* IO Fabric 2 */
+#define SIO2_DEV		0x15
+#define I2CGPIO_DEV		SIO2_DEV
+#define I2CGPIO_FUNC		2
+#define I2CGPIO_DEV_FUNC	PCI_DEVFN(I2CGPIO_DEV, I2CGPIO_FUNC)
+#define I2CGPIO_BDF	PCI_DEV(PCI_BUS_NUMBER_QNC, I2CGPIO_DEV, I2CGPIO_FUNC)
 
 /* Platform Controller Unit */
-# define LPC_DEV_FUNC	PCI_DEVFN(PCI_DEVICE_NUMBER_QNC_LPC, \
-				PCI_FUNCTION_NUMBER_QNC_LPC)
+#define LPC_DEV			PCI_DEVICE_NUMBER_QNC_LPC
+#define LPC_FUNC		PCI_FUNCTION_NUMBER_QNC_LPC
+#define LPC_DEV_FUNC		PCI_DEVFN(LPC_DEV, LPC_FUNC)
+#define LPC_BDF			PCI_DEV(PCI_BUS_NUMBER_QNC, LPC_DEV, LPC_FUNC)
 
 #endif /* _QUARK_PCI_DEVS_H_ */

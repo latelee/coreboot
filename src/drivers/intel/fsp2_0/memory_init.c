@@ -51,9 +51,10 @@ static enum fsp_status do_fsp_memory_init(void **hob_list_ptr,
 	printk(BIOS_SPEW, "\t%p: raminit_upd\n", &fspm_upd);
 	printk(BIOS_SPEW, "\t%p: hob_list ptr\n", hob_list_ptr);
 
+	post_code(POST_FSP_MEMORY_INIT);
 	timestamp_add_now(TS_FSP_MEMORY_INIT_START);
 	status = fsp_raminit(&fspm_upd, hob_list_ptr);
-	post_code(0x37);
+	post_code(POST_FSP_MEMORY_INIT);
 	timestamp_add_now(TS_FSP_MEMORY_INIT_END);
 
 	printk(BIOS_DEBUG, "FspMemoryInit returned 0x%08x\n", status);
@@ -65,8 +66,7 @@ enum fsp_status fsp_memory_init(void **hob_list, struct range_entry *range)
 {
 	struct fsp_header hdr;
 
-	/* TODO: do not hardcode CBFS file names */
-	if (fsp_load_binary(&hdr, "blobs/fspm.bin", range) != CB_SUCCESS)
+	if (fsp_load_binary(&hdr, CONFIG_FSP_M_CBFS, range) != CB_SUCCESS)
 		return FSP_NOT_FOUND;
 
 	return do_fsp_memory_init(hob_list, &hdr);

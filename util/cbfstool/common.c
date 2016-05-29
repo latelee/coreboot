@@ -122,15 +122,6 @@ void buffer_delete(struct buffer *buffer)
 	buffer->size = 0;
 }
 
-void cbfs_file_get_header(struct buffer *buf, struct cbfs_file *file)
-{
-	bgets(buf, &file->magic, sizeof(file->magic));
-	file->len = xdr_be.get32(buf);
-	file->type = xdr_be.get32(buf);
-	file->attributes_offset = xdr_be.get32(buf);
-	file->offset = xdr_be.get32(buf);
-}
-
 static struct {
 	uint32_t arch;
 	const char *name;
@@ -148,7 +139,7 @@ static struct {
 
 uint32_t string_to_arch(const char *arch_string)
 {
-	int i;
+	size_t i;
 	uint32_t ret = CBFS_ARCHITECTURE_UNKNOWN;
 
 	for (i = 0; i < ARRAY_SIZE(arch_names); i++) {
@@ -163,7 +154,7 @@ uint32_t string_to_arch(const char *arch_string)
 
 const char *arch_to_string(uint32_t a)
 {
-	int i;
+        size_t i;
 	const char *ret = NULL;
 
 	for (i = 0; i < ARRAY_SIZE(arch_names); i++) {

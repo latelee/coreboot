@@ -42,10 +42,12 @@ static enum fsp_status do_silicon_init(struct fsp_header *hdr)
 	platform_fsp_silicon_init_params_cb(&upd);
 
 	timestamp_add_now(TS_FSP_SILICON_INIT_START);
+	post_code(POST_FSP_SILICON_INIT);
 	silicon_init = (void *) (hdr->image_base +
 				 hdr->silicon_init_entry_offset);
 	status = silicon_init(&upd);
 	timestamp_add_now(TS_FSP_SILICON_INIT_END);
+	post_code(POST_FSP_SILICON_INIT);
 
 	printk(BIOS_DEBUG, "FspSiliconInit returned 0x%08x\n", status);
 	return status;
@@ -54,8 +56,7 @@ static enum fsp_status do_silicon_init(struct fsp_header *hdr)
 enum fsp_status fsp_silicon_init(struct range_entry *range)
 {
 	/* Load FSP-S and save FSP header. We will need it for Notify */
-	/* TODO: do not hardcode CBFS file names */
-	if (fsp_load_binary(&fsps_hdr, "blobs/fsps.bin", range) != CB_SUCCESS)
+	if (fsp_load_binary(&fsps_hdr, CONFIG_FSP_S_CBFS, range) != CB_SUCCESS)
 		return FSP_NOT_FOUND;
 
 	return do_silicon_init(&fsps_hdr);

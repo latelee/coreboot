@@ -202,7 +202,7 @@ u32 dev_path_encode(device_t dev)
 		ret |= dev->path.pnp.port << 8 | dev->path.pnp.device;
 		break;
 	case DEVICE_PATH_I2C:
-		ret |= dev->bus->secondary << 8 | dev->path.pnp.device;
+		ret |= dev->path.i2c.mode_10bit << 8 | dev->path.i2c.device;
 		break;
 	case DEVICE_PATH_APIC:
 		ret |= dev->path.apic.apic_id;
@@ -221,6 +221,9 @@ u32 dev_path_encode(device_t dev)
 		break;
 	case DEVICE_PATH_IOAPIC:
 		ret |= dev->path.ioapic.ioapic_id;
+		break;
+	case DEVICE_PATH_GENERIC:
+		ret |= dev->path.generic.subid << 8 | dev->path.generic.id;
 		break;
 	case DEVICE_PATH_NONE:
 	default:
@@ -286,6 +289,11 @@ const char *dev_path(device_t dev)
 			snprintf(buffer, sizeof (buffer),
 				 "CPU_BUS: %02x", dev->path.cpu_bus.id);
 			break;
+		case DEVICE_PATH_GENERIC:
+			snprintf(buffer, sizeof (buffer),
+				 "GENERIC: %d.%d", dev->path.generic.id,
+				 dev->path.generic.subid);
+			break;
 		default:
 			printk(BIOS_ERR, "Unknown device path type: %d\n",
 			       dev->path.type);
@@ -334,7 +342,8 @@ int path_eq(struct device_path *path1, struct device_path *path2)
 			(path1->pnp.device == path2->pnp.device);
 		break;
 	case DEVICE_PATH_I2C:
-		equal = (path1->i2c.device == path2->i2c.device);
+		equal = (path1->i2c.device == path2->i2c.device) &&
+			(path1->i2c.mode_10bit == path2->i2c.mode_10bit);
 		break;
 	case DEVICE_PATH_APIC:
 		equal = (path1->apic.apic_id == path2->apic.apic_id);
@@ -351,6 +360,10 @@ int path_eq(struct device_path *path1, struct device_path *path2)
 		break;
 	case DEVICE_PATH_CPU_BUS:
 		equal = (path1->cpu_bus.id == path2->cpu_bus.id);
+		break;
+	case DEVICE_PATH_GENERIC:
+		equal = (path1->generic.id == path2->generic.id) &&
+			(path1->generic.subid == path2->generic.subid);
 		break;
 	default:
 		printk(BIOS_ERR, "Unknown device type: %d\n", path1->type);

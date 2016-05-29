@@ -39,6 +39,7 @@
 #include <soc/romstage.h>
 #include <soc/uart.h>
 #include <string.h>
+#include <timestamp.h>
 
 #define FIT_POINTER				(0x100000000ULL - 0x40)
 
@@ -94,9 +95,9 @@ static void disable_watchdog(void)
 	uint32_t reg;
 
 	/* Stop TCO timer */
-	reg = inl(ACPI_PMIO_BASE + 0x68);
-	reg |= 1 << 11;
-	outl(reg, ACPI_PMIO_BASE + 0x68);
+	reg = inl(ACPI_PMIO_BASE + TCO1_CNT);
+	reg |= TCO_TMR_HLT;
+	outl(reg, ACPI_PMIO_BASE + TCO1_CNT);
 }
 
 static void migrate_power_state(int is_recovery)
@@ -127,11 +128,12 @@ asmlinkage void car_stage_entry(void)
 	struct romstage_handoff *handoff;
 	struct chipset_power_state *ps = car_get_var_ptr(&power_state);
 
-	printk(BIOS_DEBUG, "Starting romstage...\n");
+	timestamp_add_now(TS_START_ROMSTAGE);
 
 	soc_early_romstage_init();
-
 	disable_watchdog();
+
+	console_init();
 
 	prev_sleep_state = fill_power_state(ps);
 
@@ -238,9 +240,13 @@ void platform_fsp_memory_init_params_cb(struct FSPM_UPD *mupd)
 	 * requests.
 	 * TODO: add checks to avoid overlap/conflict of CAR usage.
 	 */
+
+	/* fsp does not work with StackBase modified, so use default */
+#if 0
+	/* FIXME: remove this once FSP is fixed */
 	mupd->FspmArchUpd.StackBase = _car_region_end -
 					mupd->FspmArchUpd.StackSize;
-
+#endif
 	arch_upd->Bootmode = FSP_BOOT_WITH_FULL_CONFIGURATION;
 
 	if (IS_ENABLED(CONFIG_CACHE_MRC_SETTINGS)) {

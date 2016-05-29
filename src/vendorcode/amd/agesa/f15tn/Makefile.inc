@@ -85,18 +85,9 @@ CPPFLAGS_x86_32 += $(AGESA_INC)
 CPPFLAGS_x86_64 += $(AGESA_INC)
 #######################################################################
 
-classes-y += libagesa
-
-ifeq ($(CONFIG_ARCH_ROMSTAGE_X86_32),y)
-$(eval $(call create_class_compiler,libagesa,x86_32))
-else
-$(eval $(call create_class_compiler,libagesa,x86_64))
-endif
-
 libagesa-y += Legacy/Proc/Dispatcher.c
 libagesa-y += Legacy/Proc/agesaCallouts.c
 libagesa-y += Legacy/Proc/hobTransfer.c
-libagesa-y += Lib/amdlib.c
 libagesa-y += Proc/CPU/Family/0x15/TN/F15TnC6State.c
 libagesa-y += Proc/CPU/Family/0x15/TN/F15TnCpb.c
 libagesa-y += Proc/CPU/Family/0x15/TN/F15TnEquivalenceTable.c

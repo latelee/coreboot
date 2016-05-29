@@ -72,15 +72,7 @@ CPPFLAGS_x86_32 += $(AGESA_INC)
 CPPFLAGS_x86_64 += $(AGESA_INC)
 #######################################################################
 
-classes-y += libagesa
-
-ifeq ($(CONFIG_ARCH_ROMSTAGE_X86_32),y)
-$(eval $(call create_class_compiler,libagesa,x86_32))
-else
-$(eval $(call create_class_compiler,libagesa,x86_64))
-endif
-
-libagesa-y  = Proc/GNB/Modules/GnbGfxConfig/GfxConfigPost.c
+libagesa-y += Proc/GNB/Modules/GnbGfxConfig/GfxConfigPost.c
 libagesa-y += Proc/GNB/Modules/GnbGfxConfig/GfxConfigEnv.c
 libagesa-y += Proc/GNB/Nb/Family/0x14/F14NbLclkDpm.c
 libagesa-y += Proc/GNB/Modules/GnbPcieAlibV1/PcieAlib.c
@@ -198,7 +190,6 @@ libagesa-y += Proc/CPU/Family/0x14/cpuF14Utilities.c
 libagesa-y += Proc/HT/htInterface.c
 libagesa-y += Proc/GNB/Gfx/GfxStrapsInit.c
 libagesa-y += Proc/GNB/Nb/NbInitAtEarly.c
-libagesa-y += Lib/amdlib.c
 libagesa-y += Proc/CPU/Feature/cpuCacheFlushOnHalt.c
 libagesa-y += Proc/CPU/Feature/cpuCpb.c
 libagesa-y += Proc/Mem/Main/minit.c

@@ -32,7 +32,12 @@ void apollolake_init_cpus(struct device *dev);
 #define MSR_POWER_MISC		0x120
 #define MSR_CORE_THREAD_COUNT	0x35
 #define MSR_EVICT_CTL		0x2e0
+#define MSR_EMULATE_PM_TMR	0x121
+#define   EMULATE_PM_TMR_EN	(1 << 16)
 
 #define BASE_CLOCK_MHZ		100
+
+/* Common Timer Copy (CTC) frequency - 19.2MHz. */
+#define CTC_FREQ 19200000
 
 #endif /* _SOC_APOLLOLAKE_CPU_H_ */

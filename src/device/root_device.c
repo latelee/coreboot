@@ -45,7 +45,7 @@ const char mainboard_name[] = CONFIG_MAINBOARD_VENDOR " " CONFIG_MAINBOARD_PART_
  */
 
 /* enable_dev会调用到chip_operations结构体中的enable_dev函数 */
-static void scan_static_bus(device_t bus)
+void scan_static_bus(device_t bus)
 {
 	device_t child;
 	struct bus *link;
@@ -137,7 +137,13 @@ static void root_dev_reset(struct bus *bus)
 	hard_reset();
 }
 
-// 默认的根设备操作函数集
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+static const char *root_dev_acpi_name(struct device *dev)
+{
+	return "\\_SB";
+}
+#endif
+
 /**
  * Default device operation for root device.
  *
@@ -152,4 +158,7 @@ struct device_operations default_dev_ops_root = {
 	.init             = DEVICE_NOOP,
 	.scan_bus         = root_dev_scan_bus,
 	.reset_bus        = root_dev_reset,
+#if IS_ENABLED(CONFIG_HAVE_ACPI_TABLES)
+	.acpi_name        = root_dev_acpi_name,
+#endif
 };
