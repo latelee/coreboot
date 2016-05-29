@@ -50,7 +50,6 @@ void scan_static_bus(device_t bus)
 	device_t child;
 	struct bus *link;
 
-
     ll_printk("in scan_static_bus...\n");
 	for (link = bus->link_list; link; link = link->next) {
 		for (child = link->children; child; child = child->sibling) {

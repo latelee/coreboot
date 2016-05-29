@@ -32,9 +32,10 @@
 #include <soc/ramstage.h>
 #include <soc/smm.h>
 
+// TODO 确认这是不是真的不要
 // mp_init.c的bsp_do_flight_plan函数会调用到
-	MP_FR_BLOCK_APS(mp_initialize_cpu, NULL, mp_initialize_cpu, NULL), // 初始化cpu
-	MP_FR_BLOCK_APS(NULL, NULL, enable_smis, NULL), // 使能smis
+//	MP_FR_BLOCK_APS(mp_initialize_cpu, NULL, mp_initialize_cpu, NULL), // 初始化cpu
+//	MP_FR_BLOCK_APS(NULL, NULL, enable_smis, NULL), // 使能smis
 /* Core level MSRs */
 static const struct reg_script core_msr_script[] = {
 	/* Dynamic L2 shrink enable and threshold */

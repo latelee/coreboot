@@ -636,7 +636,7 @@ static int mp_init(struct bus *cpu_bus, struct mp_params *p)
 
 // qemu跟踪后，不在此处调用cpu_initialize的
 /* Calls cpu_initialize(info->index) which calls the coreboot CPU drivers. */
-void mp_initialize_cpu(void *unused)
+static void mp_initialize_cpu(void)
 {
 	/* Call back into driver infrastructure for the AP initialization.   */
 	struct cpu_info *info = cpu_info(); // 在cpu.h文件中定义，汇编语言
@@ -840,13 +840,14 @@ static void trigger_smm_relocation(void)
 	mp_state.ops.per_cpu_smm_trigger();
 }
 
+// mp_init.c的bsp_do_flight_plan函数会调用到
 static struct mp_flight_record mp_steps[] = {
 	/* Once the APs are up load the SMM handlers. */
 	MP_FR_BLOCK_APS(NULL, load_smm_handlers),
 	/* Perform SMM relocation. */
 	MP_FR_NOBLOCK_APS(trigger_smm_relocation, trigger_smm_relocation),
 	/* Initialize each cpu through the driver framework. */
-	MP_FR_BLOCK_APS(mp_initialize_cpu, mp_initialize_cpu),
+	MP_FR_BLOCK_APS(mp_initialize_cpu, mp_initialize_cpu), // 初始化cpu
 	/* Wait for APs to finish everything else then let them park. */
 	MP_FR_BLOCK_APS(NULL, NULL),
 };

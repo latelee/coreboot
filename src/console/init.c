@@ -44,6 +44,7 @@ void console_init(void)
 	pci_early_bridge_init();
 #endif
 
+	console_hw_init();
 	// 打印版本信息及编译时间 首先打印此信息
 	printk(BIOS_INFO, "\n\ncoreboot-%s%s %s by Jim Kent " ENV_STRING " starting...\n",
 	       coreboot_version, coreboot_extra_version, coreboot_build);

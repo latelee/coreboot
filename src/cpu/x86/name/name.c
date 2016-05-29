@@ -18,7 +18,7 @@
 #include <cpu/cpu.h>
 #include <cpu/x86/name.h>
 
-void fill_processor_name(char *processor_name
+void fill_processor_name(char *processor_name)
 {
 	struct cpuid_result regs;
 	char temp_processor_name[49];
